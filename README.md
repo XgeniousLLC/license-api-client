@@ -1,9 +1,9 @@
 # this package is for manage license management system for xgenious interls
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/xgenious.official/xgapiclient.svg?style=flat-square)](https://packagist.org/packages/xgenious.official/xgapiclient)
-[![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/xgenious.official/xgapiclient/run-tests?label=tests)](https://github.com/xgenious.official/xgapiclient/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/workflow/status/xgenious.official/xgapiclient/Check%20&%20fix%20styling?label=code%20style)](https://github.com/xgenious.official/xgapiclient/actions?query=workflow%3A"Check+%26+fix+styling"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/xgenious.official/xgapiclient.svg?style=flat-square)](https://packagist.org/packages/xgenious.official/xgapiclient)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/xgenious/xgapiclient.svg?style=flat-square)](https://packagist.org/packages/xgenious/xgapiclient)
+[![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/xgenious/xgapiclient/run-tests?label=tests)](https://github.com/xgenious/xgapiclient/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/workflow/status/xgenious/xgapiclient/Check%20&%20fix%20styling?label=code%20style)](https://github.com/xgenious/xgapiclient/actions?query=workflow%3A"Check+%26+fix+styling"+branch%3Amain)
+[![Total Downloads](https://img.shields.io/packagist/dt/xgenious/xgapiclient.svg?style=flat-square)](https://packagist.org/packages/xgenious/xgapiclient)
 
 
 ## Installation
