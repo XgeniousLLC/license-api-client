@@ -1,10 +1,5 @@
 <?php
 
-if (!function_exists('purify_html')) {
-    function purify_html($html){
-        return strip_tags(\Mews\Purifier\Purifier::clean($html));
-    }
-}
 
 if (!function_exists('getXgFtpInfoFieldValue')) {
     function getXgFtpInfoFieldValue($field)
@@ -31,8 +26,8 @@ if (!function_exists('extension_check')) {
     }
 }
 
-if (!function_exists('setEnvValue')) {
-    function setEnvValue(array $values)
+if (!function_exists('XGsetEnvValue')) {
+    function XGsetEnvValue(array $values)
     {
 
         $envFile = app()->environmentFilePath();

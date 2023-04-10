@@ -156,11 +156,11 @@ class SystemUpgradeController extends Controller
     {
         if ($isTenant === 0) {
             try {
-                setEnvValue(['APP_ENV' => 'local']);
+                XGsetEnvValue(['APP_ENV' => 'local']);
                 Artisan::call('migrate', ['--force' => true]);
                 Artisan::call('db:seed', ['--force' => true]);
                 Artisan::call('cache:clear');
-                setEnvValue(['APP_ENV' => 'production']);
+                XGsetEnvValue(['APP_ENV' => 'production']);
 
                 return true;
             } catch (\Exception $e) {
@@ -169,14 +169,14 @@ class SystemUpgradeController extends Controller
 
         } elseif ($isTenant === 1) {
             try {
-                setEnvValue(['APP_ENV' => 'local']);
+                XGsetEnvValue(['APP_ENV' => 'local']);
                 Artisan::call('cache:clear');
                 Artisan::call('migrate', ['--force' => true]);
                 Artisan::call('db:seed', ['--force' => true]);
                 Artisan::call('cache:clear');
                 //tenant database migrate
                 Artisan::call('tenants:migrate', ['--force' => true]);
-                setEnvValue(['APP_ENV' => 'production']);
+                XGsetEnvValue(['APP_ENV' => 'production']);
 
                 return true;
             } catch (\Exception $e) {
