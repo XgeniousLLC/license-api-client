@@ -17,19 +17,19 @@ composer require xgenious/xgapiclient
 You can publish and run the migrations with:
 
 ```bash
-php artisan vendor:publish --tag="xgapiclient_without_prefix-migrations"
+php artisan vendor:publish --tag="xgapiclient-migrations" 
 php artisan migrate
 ```
 
 You can publish the config file with:
 ```bash
-php artisan vendor:publish --tag="xgapiclient_without_prefix-config"
+php artisan vendor:publish --tag="xgapiclient-config"
 ```
 
 Optionally, you can publish the views using
 
 ```bash
-php artisan vendor:publish --tag="example-views"
+php artisan vendor:publish --tag="xgapiclient-views"
 ```
 
 This is the contents of the published config file:
