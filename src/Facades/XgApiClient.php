@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @see \Xgenious\XgApiClient\XgApiClient
  * @method static VerifyLicense($purchaseCode,$email,$envatoUsername)
+ * @method static activeLicense($licenseCode,$envatoUsername)
+ * @method static checkForUpdate($purchaseCode,$getItemVersion)
  *
  *
  */
