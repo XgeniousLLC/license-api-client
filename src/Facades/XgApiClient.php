@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static VerifyLicense($purchaseCode,$email,$envatoUsername)
  * @method static activeLicense($licenseCode,$envatoUsername)
  * @method static checkForUpdate($purchaseCode,$getItemVersion)
+ * @method static extensionCheck($name)
  *
  *
  */

@@ -8,6 +8,16 @@ use Illuminate\Support\Facades\Http;
 class XgApiClient
 {
 
+    public  function extensionCheck($name)
+    {
+        if (!extension_loaded($name)) {
+                $response = false;
+            } else {
+            $response = true;
+        }
+        return $response;
+    }
+    
     public function activeLicense($licenseCode,$envatoUsername){
 
         $siteUrl = url('/');
