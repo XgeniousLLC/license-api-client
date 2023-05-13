@@ -60,6 +60,7 @@ class XgApiClient
                 "mysql_version" => $result->mysql_version ?? "",
                 "extension" => $result->extension ?? "",
                 "is_tenant" => $result->is_tenant ?? 0,
+                "product_uid" => $result->product_uid ?? "",
                 "release_date" => property_exists($result,"release_date") ? Carbon::parse($result->release_date)->diffForHumans() : "",
             ];
 
