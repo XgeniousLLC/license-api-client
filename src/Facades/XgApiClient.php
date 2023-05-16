@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static activeLicense($licenseCode,$envatoUsername)
  * @method static checkForUpdate($purchaseCode,$getItemVersion)
  * @method static extensionCheck($name)
- * @method static downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey);
+ * @method static downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version)
  *
  *
  */

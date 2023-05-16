@@ -21,7 +21,7 @@ class XgApiClient
         }
         return $response;
     }
-    public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey){
+    public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
 
 
         $siteUrl = url('/');
@@ -34,10 +34,11 @@ class XgApiClient
             Storage::put('/update-file/'.$filename, $downloadableFile);
             Artisan::call('down');
 
-            $returnVal = ['msg' => __('System update failed')];
+            $returnVal = ['msg' => __('System update failed'),"type" => "danger"];
             if ($this->systemUpgradeWithLatestVersion()) {
-                if (!$this->systemDbUpgrade($isTenant)){
+                if (!$this->systemDbUpgrade($isTenant,$version)){
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
+                    $returnVal ['type'] = "success";
                     return $returnVal;
                 }
             }
@@ -136,7 +137,7 @@ class XgApiClient
 
         return true;
     }
-    private function systemDbUpgrade($isTenant){
+    private function systemDbUpgrade($isTenant,$version){
 
         if ($isTenant == 0) {
             try {
@@ -154,6 +155,10 @@ class XgApiClient
                 Artisan::call('cache:clear');
                 setEnvValue(['APP_ENV' => 'production']);
 
+                try {
+                    update_static_option("site_script_version",trim($version,"vV-"));
+                }catch (\Exception $e){}
+                
                 return true;
             } catch (\Exception $e) {
                 return false;
@@ -180,6 +185,9 @@ class XgApiClient
                 }catch (\Exception $e){
 
                 }
+                try {
+                    update_static_option_central('get_script_version',trim($version,"vV-"));
+                }catch (\Exception $e){}
 
                 setEnvValue(['APP_ENV' => 'production']);
 
