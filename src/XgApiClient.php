@@ -34,7 +34,7 @@ class XgApiClient
             Storage::put('/update-file/'.$filename, $downloadableFile);
             Artisan::call('down');
 
-            $returnVal = ['msg' => __('System update failed'),"type" => "danger"];
+            $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
             if ($this->systemUpgradeWithLatestVersion()) {
                 if (!$this->systemDbUpgrade($isTenant,$version)){
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
