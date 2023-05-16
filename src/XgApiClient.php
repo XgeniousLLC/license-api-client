@@ -23,14 +23,6 @@ class XgApiClient
     }
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey){
 
-        /* this code is only for test and resolve the update files issue */
-        if ($this->systemUpgradeWithLatestVersion()) {
-            if (!$this->systemDbUpgrade($isTenant)){
-                $returnVal ['msg'] = __('Database Upgrade and Migration failed');
-                return $returnVal;
-            }
-        }
-        dd('update done');
 
         $siteUrl = url('/');
         $has = hash_hmac('sha224',$getItemLicenseKey.$siteUrl,'xgenious');
@@ -76,7 +68,7 @@ class XgApiClient
         if ($zipExtracted) {
             $zipArchive->close();
             //delete zip after extracted
-            unlink(storage_path('app/update-file/update.zip'));
+            @unlink(storage_path('app/update-file/update.zip'));
 
             $updateFiles = Storage::allFiles($updatedFileLocation);
 
@@ -119,17 +111,17 @@ class XgApiClient
                 }
 
 
-                if (str_contains($getDirectory, 'Modules/')) {
-                    //check change-logs file for which module will update;
-                    $modules = json_decode(Storage::get($updatedFileLocation. '/change-logs.json'))->modules;
-                    if (!in_array($file->getFilename(),$skipFiles)){
-                        foreach ($modules as $module) {
-                            if (str_contains($getDirectory, 'Modules/'.$module)) {
-                                $file->move(storage_path('../' . $getDirectory));
-                            }
-                        }
-                    }
-                }
+                // if (str_contains($getDirectory, 'Modules/')) {
+                //     //check change-logs file for which module will update;
+                //     $modules = json_decode(Storage::get($updatedFileLocation. '/change-logs.json'))->modules;
+                //     if (!in_array($file->getFilename(),$skipFiles)){
+                //         foreach ($modules as $module) {
+                //             if (str_contains($getDirectory, 'Modules/'.$module)) {
+                //                 $file->move(storage_path('../' . $getDirectory));
+                //             }
+                //         }
+                //     }
+                // }
                 //did not found any use case
                 // elseif (($getDirectory !== 'change-logs.json') && !$cacheDirExist && $getDirectory !== 'custom/') {
                 //     if (!in_array($file->getFilename(),$skipFiles)){
@@ -146,7 +138,7 @@ class XgApiClient
     }
     private function systemDbUpgrade($isTenant){
 
-        if ($isTenant === 0) {
+        if ($isTenant == 0) {
             try {
                 setEnvValue(['APP_ENV' => 'local']);
                 try {
@@ -167,7 +159,7 @@ class XgApiClient
                 return false;
             }
 
-        } elseif ($isTenant === 1) {
+        } elseif ($isTenant == 1) {
             try {
                 setEnvValue(['APP_ENV' => 'local']);
                 Artisan::call('cache:clear');
