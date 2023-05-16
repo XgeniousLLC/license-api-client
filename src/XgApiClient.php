@@ -130,12 +130,12 @@ class XgApiClient
                         }
                     }
                 }
-
-                elseif (($getDirectory !== 'change-logs.json') && !$cacheDirExist && $getDirectory !== 'custom/') {
-                    if (!in_array($file->getFilename(),$skipFiles)){
-                        $file->move(storage_path('../' . $getDirectory));
-                    }
-                }
+                //did not found any use case
+                // elseif (($getDirectory !== 'change-logs.json') && !$cacheDirExist && $getDirectory !== 'custom/') {
+                //     if (!in_array($file->getFilename(),$skipFiles)){
+                //         $file->move(storage_path('../' . $getDirectory));
+                //     }
+                // }
 
             }
         }
