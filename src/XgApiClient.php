@@ -5,6 +5,7 @@ namespace Xgenious\XgApiClient;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\File;
@@ -207,16 +208,26 @@ class XgApiClient
         // todo:: url should be look like this activate-license/{key}/{client}
         $has = hash_hmac('sha224',$licenseCode.$envatoUsername.$siteUrl,'xgenious');
 
+        $php_version = PHP_VERSION;
+        $mysql_version = $this->getMysqlVersionDetails();
+        $available_extension = get_loaded_extensions();
+        $ip = request()->ip();
+        $site_version = get_static_option("site_script_version");
+
         $req = Http::post($this->getBaseApiUrl()."activate-license/{$licenseCode}/".$envatoUsername,[
             "has" => $has,
             "agent" => $agent,
-            "site" => url("/")
+            "site" => url("/"),
+            "ip" => $ip,
+            "php_version" => $php_version,
+            "mysql_info" => json_encode($mysql_version),
+            "php_extensions" => implode(",",$available_extension),
+            "site_version" => $site_version,
         ]);
-
+        $result = $req->object();
         //todo verify the data
         $messsage = __("license activate failed, please try after some time, if you sill face issue contact support");
         if ($req->status() === 200){
-            $result = $req->object();
             if (property_exists($result,"success") && $result->success){
                 return [
                     "success" => $result->success,
@@ -224,6 +235,12 @@ class XgApiClient
                     "data" => $result->data
                 ];
             }
+        }elseif ($req->status() === 422){
+            return [
+                "success" => false,
+                "message" => $result->message,
+                "license_key" => $licenseCode
+            ];
         }
 
 
@@ -235,9 +252,37 @@ class XgApiClient
 
     }
 
+    private function getMysqlVersionDetails(){
+        $results = DB::select( DB::raw("select version()") );
+        $mysql_version =  $results[0]?->{'version()'};
+        $mariadb_version = '';
+
+        if (strpos($mysql_version, 'Maria') !== false) {
+            $mariadb_version = $mysql_version;
+            $mysql_version = '';
+        }
+        return [
+            "type" => strpos($mysql_version, 'Maria') !== false ? "MariaDB" : "mysql",
+            "version" => strpos($mysql_version, 'Maria') !== false ? $mariadb_version : $mysql_version
+        ];
+    }
+
     public function checkForUpdate($licenseKey,$getItemVersion){
+
         $has = hash_hmac('sha224',$licenseKey.$getItemVersion,'xgenious');
-        $checkUpdateVersion = Http::post($this->getBaseApiUrl()."check-version-update/{$licenseKey}/{$getItemVersion}?has={$has}");
+
+        $php_version = PHP_VERSION;
+        $mysql_version = $this->getMysqlVersionDetails();
+        $available_extension = get_loaded_extensions();
+        $ip = request()->ip();
+        $site_version = get_static_option("site_script_version");
+
+        $checkUpdateVersion = Http::post($this->getBaseApiUrl()."check-version-update/{$licenseKey}/{$getItemVersion}?has={$has}",[
+            "php_version" => $php_version,
+            "mysql_info" => json_encode($mysql_version),
+            "php_extensions" => implode(",",$available_extension),
+            "site_version" => $site_version,
+        ]);
         $result = $checkUpdateVersion->object();
         $messsage = __("something went wrong please try after sometime, if you still face the issue, please contact support");
         if (property_exists($result,'success') && $result->success){
