@@ -225,6 +225,7 @@ class XgApiClient
             "site_version" => $site_version,
         ]);
         $result = $req->object();
+
         //todo verify the data
         $messsage = __("license activate failed, please try after some time, if you sill face issue contact support");
         if ($req->status() === 200){
