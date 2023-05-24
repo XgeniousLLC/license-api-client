@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\File;
 
@@ -16,8 +17,8 @@ class XgApiClient
     public  function extensionCheck($name)
     {
         if (!extension_loaded($name)) {
-                $response = false;
-            } else {
+            $response = false;
+        } else {
             $response = true;
         }
         return $response;
@@ -85,14 +86,15 @@ class XgApiClient
                 $getDirectory = ($getDirectory == 'change-logs.json') ? $getDirectory : chop($getDirectory, $file->getFilename());
 
                 // not to move if found these directories
-                $skipDir = ['.fleet/', '.idea/', '.vscode/'];
-                $skipFiles = ['.DS_Store'];
-                $cacheDirExist = in_array($getDirectory, $skipDir) && (str_contains($getDirectory, '.fleet/') || str_contains($getDirectory, '.idea') || str_contains($getDirectory, '.vscode'));
+                $skipDir = ['.fleet', '.idea', '.vscode/',"lang",'.git'];
+                $skipFiles = ['.DS_Store',"dynamic-style.css","dynamic-script.js"];
 
-                if (str_contains($getDirectory, '.git/')) {
-                    //dd('Git'.$getDirectory);
-                    //return response()->json('Alert...your update version folder have .git, please contact your author!!');
+
+                preg_match('/[a-zA-Z_]+?(?=\s*?[^\w]*?$)/',$getDirectory,$currentFolderName);
+                if (in_array(current($currentFolderName), $skipDir)) {
+                    continue;
                 }
+
                 if (str_contains($getDirectory, 'custom/')) {
                     $changesLogs = json_decode(Storage::get($updatedFileLocation. '/change-logs.json'))->custom;
                     foreach($changesLogs as $changesLog) {
@@ -106,30 +108,11 @@ class XgApiClient
                     }
                 }
                 if (str_contains($getDirectory, 'assets/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
-                    //dd($getDirectory, $file->move(storage_path('../../' . $getDirectory)));
+
                     if (!in_array($file->getFilename(),$skipFiles)){
                         $file->move(storage_path('../../' . $getDirectory));
                     }
                 }
-
-
-                // if (str_contains($getDirectory, 'Modules/')) {
-                //     //check change-logs file for which module will update;
-                //     $modules = json_decode(Storage::get($updatedFileLocation. '/change-logs.json'))->modules;
-                //     if (!in_array($file->getFilename(),$skipFiles)){
-                //         foreach ($modules as $module) {
-                //             if (str_contains($getDirectory, 'Modules/'.$module)) {
-                //                 $file->move(storage_path('../' . $getDirectory));
-                //             }
-                //         }
-                //     }
-                // }
-                //did not found any use case
-                // elseif (($getDirectory !== 'change-logs.json') && !$cacheDirExist && $getDirectory !== 'custom/') {
-                //     if (!in_array($file->getFilename(),$skipFiles)){
-                //         $file->move(storage_path('../' . $getDirectory));
-                //     }
-                // }
 
             }
         }
@@ -159,7 +142,7 @@ class XgApiClient
                 try {
                     update_static_option("site_script_version",trim($version,"vV-"));
                 }catch (\Exception $e){}
-                
+
                 return true;
             } catch (\Exception $e) {
                 return false;
@@ -182,6 +165,7 @@ class XgApiClient
                 Artisan::call('cache:clear');
                 //tenant database migrate
                 try {
+                    //todo run a query to get all the tenant then run migrate one by one...
                     Artisan::call('tenants:migrate', ['--force' => true]);
                 }catch (\Exception $e){
 
@@ -337,9 +321,9 @@ class XgApiClient
         }
 
         return [
-          "success" => false,
-          "message" => $messsage,
-          "data" => null
+            "success" => false,
+            "message" => $messsage,
+            "data" => null
         ];
 
     }
