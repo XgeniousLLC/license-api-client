@@ -311,7 +311,7 @@ class XgApiClient
 
         return [
             "success" => false,
-            "message" => $messsage
+            "message" => property_exists($result,"message") ? $result->message : $messsage
         ];
     }
     public function VerifyLicense($purchaseCode,$email,$envatoUsername){
