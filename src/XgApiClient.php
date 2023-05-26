@@ -25,11 +25,13 @@ class XgApiClient
     }
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
 
-
+        $ip = request()->ip();
         $siteUrl = url('/');
         $has = hash_hmac('sha224',$getItemLicenseKey.$siteUrl,'xgenious');
-        $downloadResponse = Http::connectTimeout(0)->timeout(1200)->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}");
-        $downloadableFile = $downloadResponse->getBody()->getContents();
+        $downloadResponse = Http::connectTimeout(0)->timeout(1200)->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}",[
+            "ip" =>  $ip 
+        ]);
+         $downloadableFile = $downloadResponse->getBody()->getContents();
         $filename = 'update.zip';
         $returnVal = [];
         if ($downloadResponse->status() === 200) {
@@ -267,6 +269,7 @@ class XgApiClient
             "mysql_info" => json_encode($mysql_version),
             "php_extensions" => implode(",",$available_extension),
             "site_version" => $site_version,
+            "ip" => $ip,
         ]);
         $result = $checkUpdateVersion->object();
         $messsage = __("something went wrong please try after sometime, if you still face the issue, please contact support");
