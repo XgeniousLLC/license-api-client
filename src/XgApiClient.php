@@ -115,7 +115,12 @@ class XgApiClient
                         $file->move(storage_path('../../' . $getDirectory));
                     }
                 }
+                if (str_contains($getDirectory, '__rootFiles/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
 
+                    if (!in_array($file->getFilename(),$skipFiles)){
+                        $file->move(storage_path('../../' . $getDirectory));
+                    }
+                }
             }
         }
 
@@ -302,12 +307,12 @@ class XgApiClient
         ];
     }
     public function VerifyLicense($purchaseCode,$email,$envatoUsername){
-
         $req = Http::post($this->getBaseApiUrl()."verify-license",[
             "purchase_code" => $purchaseCode,
             "email" => $email,
             "client" => $envatoUsername,
-            "site" => url("/")
+            "site" => url("/"),
+            "api_token" => Config::get("xgapiclient.has_token")
         ]);
 
         //todo verify the data
