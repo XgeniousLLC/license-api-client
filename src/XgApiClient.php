@@ -23,13 +23,18 @@ class XgApiClient
         }
         return $response;
     }
+
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
 
         $ip = request()->ip();
         $siteUrl = url('/');
+
         $has = hash_hmac('sha224',$getItemLicenseKey.$siteUrl,'xgenious');
+
+        
         $downloadResponse = Http::connectTimeout(0)->timeout(1200)->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}",[
-            "ip" =>  $ip 
+            "ip" =>  $ip,
+            "api_token" => Config::get("xgapiclient.has_token")
         ]);
          $downloadableFile = $downloadResponse->getBody()->getContents();
         $filename = 'update.zip';
@@ -118,7 +123,7 @@ class XgApiClient
                 if (str_contains($getDirectory, '__rootFiles/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
 
                     if (!in_array($file->getFilename(),$skipFiles)){
-                        $file->move(storage_path('../../' . $getDirectory));
+                        $file->move(storage_path('../../' . str_replace('__rootFiles/',"",$getDirectory)));
                     }
                 }
             }
@@ -268,13 +273,13 @@ class XgApiClient
         $available_extension = get_loaded_extensions();
         $ip = request()->ip();
         $site_version = get_static_option("site_script_version");
-
         $checkUpdateVersion = Http::post($this->getBaseApiUrl()."check-version-update/{$licenseKey}/{$getItemVersion}?has={$has}",[
             "php_version" => $php_version,
             "mysql_info" => json_encode($mysql_version),
             "php_extensions" => implode(",",$available_extension),
             "site_version" => $site_version,
             "ip" => $ip,
+            "api_token" => Config::get("xgapiclient.has_token")
         ]);
         $result = $checkUpdateVersion->object();
         $messsage = __("something went wrong please try after sometime, if you still face the issue, please contact support");
