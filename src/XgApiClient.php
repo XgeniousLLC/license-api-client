@@ -25,7 +25,7 @@ class XgApiClient
     }
 
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
-
+        ini_set ( 'max_execution_time', -1);
         $ip = request()->ip();
         $siteUrl = url('/');
 
