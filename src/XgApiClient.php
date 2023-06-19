@@ -2,7 +2,9 @@
 
 namespace Xgenious\XgApiClient;
 
+use App\Models\Tenant;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -25,18 +27,24 @@ class XgApiClient
     }
 
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
-        ini_set ( 'max_execution_time', -1);
+
         $ip = request()->ip();
         $siteUrl = url('/');
 
         $has = hash_hmac('sha224',$getItemLicenseKey.$siteUrl,'xgenious');
+        ini_set('memory_limit', '-1');
+        set_time_limit(0);
 
-        
-        $downloadResponse = Http::connectTimeout(0)->timeout(1200)->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}",[
+        $downloadResponse = Http::connectTimeout(0)
+            ->timeout(3000)
+            ->withHeaders([
+            'accept-encoding' => 'gzip, deflate',
+            ])
+            ->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}",[
             "ip" =>  $ip,
             "api_token" => Config::get("xgapiclient.has_token")
         ]);
-         $downloadableFile = $downloadResponse->getBody()->getContents();
+        $downloadableFile = $downloadResponse->getBody()->getContents();
         $filename = 'update.zip';
         $returnVal = [];
         if ($downloadResponse->status() === 200) {
@@ -57,7 +65,7 @@ class XgApiClient
         return false;
     }
 
-    private  function  systemUpgradeWithLatestVersion(){
+    public  function  systemUpgradeWithLatestVersion(){
         $getLatestUpdateFile = storage_path('app/update-file/update.zip');
 
         $zipArchive = new \ZipArchive();
@@ -73,7 +81,7 @@ class XgApiClient
 
         $updatedFileLocation = "update-file/update";
 
-        $zipExtracted = $zipArchive->extractTo(storage_path('app/update-file/'));
+        $zipExtracted =  $zipArchive->extractTo(storage_path('app/update-file/'));
 
         if ($zipExtracted) {
             $zipArchive->close();
@@ -114,12 +122,32 @@ class XgApiClient
                         }
                     }
                 }
+
+
+
+                if (str_contains($getDirectory, 'public/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
+
+                    if ($file->getFilename() != 'app.js'){
+                        //todo check if the folder name is
+                        $file->move(storage_path('../' . $getDirectory));
+                    }
+                }
+
                 if (str_contains($getDirectory, 'assets/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
 
                     if (!in_array($file->getFilename(),$skipFiles)){
-                        $file->move(storage_path('../../' . $getDirectory));
+                        //todo check if the folder name is
+                       if (str_contains($getDirectory, 'page-layout/')){
+                           if (!file_exists($getDirectory.$file->getFilename())){
+                               $file->move(storage_path('../../' . $getDirectory));
+                           }
+                       }else{
+                           $file->move(storage_path('../../' . $getDirectory));
+                       }
+
                     }
                 }
+
                 if (str_contains($getDirectory, '__rootFiles/') && (!str_contains($getDirectory, 'Modules/') && !str_contains($getDirectory, 'plugins'))) {
 
                     if (!in_array($file->getFilename(),$skipFiles)){
@@ -133,7 +161,7 @@ class XgApiClient
 
         return true;
     }
-    private function systemDbUpgrade($isTenant,$version){
+    public function systemDbUpgrade($isTenant,$version){
 
         if ($isTenant == 0) {
             try {
@@ -163,7 +191,6 @@ class XgApiClient
         } elseif ($isTenant == 1) {
             try {
                 setEnvValue(['APP_ENV' => 'local']);
-                Artisan::call('cache:clear');
                 try {
                     Artisan::call('migrate', ['--force' => true]);
                 }catch (\Exception $e){
@@ -175,13 +202,20 @@ class XgApiClient
 
                 }
                 Artisan::call('cache:clear');
-                //tenant database migrate
-                try {
-                    //todo run a query to get all the tenant then run migrate one by one...
-                    Artisan::call('tenants:migrate', ['--force' => true]);
-                }catch (\Exception $e){
 
-                }
+                //todo run a query to get all the tenant then run migrate one by one...
+                 Tenant::latest()->chunk(50,function ($tenans){
+                    foreach ($tenans as $tenant){
+                        try {
+                            Config::set("database.connections.mysql.engine","InnoDB");
+                            Artisan::call('tenants:migrate', ['--force' => true,'--tenants'=>$tenant->id]);
+                        }catch (\Exception $e){
+                            //if issue is related to the mysql database engine,
+                        }
+                    }
+                });
+
+
                 try {
                     update_static_option_central('get_script_version',trim($version,"vV-"));
                 }catch (\Exception $e){}
