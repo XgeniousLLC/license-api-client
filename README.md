@@ -1,4 +1,4 @@
-# this package is for manage license management system for xgenious interls
+# this package is for managing the license management system for xgenious internals
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/xgenious/xgapiclient.svg?style=flat-square)](https://packagist.org/packages/xgenious/xgapiclient)
 [![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/xgenious/xgapiclient/run-tests?label=tests)](https://github.com/xgenious/xgapiclient/actions?query=workflow%3Arun-tests+branch%3Amain)
