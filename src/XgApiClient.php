@@ -101,7 +101,7 @@ class XgApiClient
                 $getDirectory = ($getDirectory == 'change-logs.json') ? $getDirectory : chop($getDirectory, $file->getFilename());
 
                 // not to move if found these directories
-                $skipDir = ['.fleet', '.idea', '.vscode/',"lang",'.git'];
+                $skipDir = ['.fleet', '.idea', '.vscode/',"lang",'.git','custom-fonts'];
                 $skipFiles = ['.DS_Store',"dynamic-style.css","dynamic-script.js"];
 
 
@@ -142,7 +142,16 @@ class XgApiClient
                                $file->move(storage_path('../../' . $getDirectory));
                            }
                        }else{
-                           $file->move(storage_path('../../' . $getDirectory));
+                            try{
+                                $file->move(storage_path('../../' . $getDirectory));
+                            }catch(\Exception $e){
+                                if(str_contains($e->getMessage(),'No such file or directory')){
+                                    if(!file_exists(storage_path('../../' . $getDirectory)) && is_dir($getDirectory)){
+                                        @mkdir($structure, 0777, true);
+                                        $file->move(storage_path('../../' . $getDirectory));
+                                    }
+                                }
+                            }
                        }
 
                     }
@@ -161,6 +170,20 @@ class XgApiClient
 
         return true;
     }
+
+    private function replaceFile($file,$getDirectory,$path = '../../'){
+        try{
+            $file->move(storage_path( $path. $getDirectory));
+        }catch(\Exception $e){
+            if(str_contains($e->getMessage(),'No such file or directory')){
+                if(!file_exists(storage_path($path . $getDirectory)) && is_dir($getDirectory)){
+                    @mkdir($structure, 0777, true);
+                    $file->move(storage_path('../../' . $getDirectory));
+                }
+            }
+        }
+    }
+
     public function systemDbUpgrade($isTenant,$version){
 
         if ($isTenant == 0) {
