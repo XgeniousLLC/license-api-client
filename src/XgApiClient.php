@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\File as FileHelper;
+use GuzzleHttp\Client;
 
 class XgApiClient
 {
@@ -36,20 +37,16 @@ class XgApiClient
         ini_set('memory_limit', '-1');
         set_time_limit(0);
 
-        $downloadResponse = Http::connectTimeout(0)
-            ->timeout(3000)
-            ->withHeaders([
-            'accept-encoding' => 'gzip, deflate',
-            ])
-            ->post($this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}",[
-            "ip" =>  $ip,
-            "api_token" => Config::get("xgapiclient.has_token")
-        ]);
-        $downloadableFile = $downloadResponse->getBody()->getContents();
-        $filename = 'update.zip';
         $returnVal = [];
-        if ($downloadResponse->status() === 200) {
-            Storage::put('/update-file/'.$filename, $downloadableFile);
+
+        $url = $this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
+        $postFields = [
+            "ip" => $ip,
+            "api_token" => Config::get("xgapiclient.has_token")
+        ];
+        $download_status = $this->chunkedDownload($url,$postFields);
+
+        if ($download_status === 200) {
             Artisan::call('down');
 
             $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
@@ -64,6 +61,54 @@ class XgApiClient
             return $returnVal;
         }
         return false;
+    }
+
+    public function generalDownload($url,$fields){
+        $downloadResponse = Http::connectTimeout(0)
+            ->timeout(3000)
+            ->withHeaders([
+            'accept-encoding' => 'gzip, deflate',
+            ])
+            ->post($url,$fields);
+        $downloadableFile = $downloadResponse->getBody()->getContents();
+        $filename = 'update.zip';
+        if ($downloadResponse->status() === 200) {
+            Storage::put('/update-file/'.$filename, $downloadableFile);
+        }
+        return $downloadResponse->status();
+    }
+
+    public function chunkedDownload($url,$fields){
+
+        $destination = storage_path("app/update-file/update.zip");
+
+        $client = new Client();
+
+        // Open file handle for writing
+        $fp = fopen($destination, 'w+');
+        
+        // Make the POST request
+        $response = $client->post($url, [
+            'form_params' => $fields,
+            'stream' => true,
+        ]);
+        
+        // Get the response body as a stream
+        $body = $response->getBody();
+        
+        // Define the chunk size (e.g., 1 MB)
+        $chunkSize = 1024 * 1024;
+        
+        // Read the stream in chunks and write to the file
+        while (!$body->eof()) {
+            $chunk = $body->read($chunkSize);
+            fwrite($fp, $chunk);
+        }
+        
+        // Close the file handle
+        fclose($fp);
+        
+        return $response->getStatusCode();//status code s failed or success 
     }
 
     public function systemUpgradeWithLatestVersion()
