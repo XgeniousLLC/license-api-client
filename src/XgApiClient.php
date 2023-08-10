@@ -112,125 +112,139 @@ class XgApiClient
         return $response->getStatusCode();//status code s failed or success 
     }
 
-    public function systemUpgradeWithLatestVersion()
-    {
+    public function getFiles($directory) {
+        foreach (new \DirectoryIterator($directory) as $file) {
+            if ($file->isFile()) {
+                yield $file->getPathname();
+            }
+        }
+    }
+    
+    public function systemUpgradeWithLatestVersion() {
         $getLatestUpdateFile = storage_path('app/update-file/update.zip');
-
+    
         $zipArchive = new \ZipArchive();
         $zipArchive->open($getLatestUpdateFile);
         $filenames = [];
-        if (!empty($zipArchive)) {
-            for ($i = 0; $i < $zipArchive->numFiles; $i++) {
-                $stat = $zipArchive->statIndex($i);
-                // file's name
-                $filenames[] = $stat['name'];
-            }
+        for ($i = 0; $i < $zipArchive->numFiles; $i++) {
+            $stat = $zipArchive->statIndex($i);
+            $filenames[] = $stat['name'];
         }
-
-        $updatedFileLocation = "update-file/update";
-
-        $zipExtracted = $zipArchive->extractTo(storage_path('app/update-file/'));
-
+    
+        $updatedFileLocation = storage_path('app/update-file/update');
+        $zipExtracted = $zipArchive->extractTo($updatedFileLocation);
+        
         if ($zipExtracted) {
             $zipArchive->close();
-            //delete zip after extracted
-            //@unlink(storage_path('app/update-file/update.zip'));
-
-            $updateFiles = Storage::allFiles($updatedFileLocation);
-
-            foreach ($updateFiles as $updateFile) {
-                // todo:: first we need to get file name
-                // todo:: remove update-file/update from file path
-                // todo:: remove filename from $updateFile
-                $file = new File(storage_path("app/" . $updateFile));
-
-                $getDirectory = basename(dirname($file->getRealPath()));
-                $getFileName = $file->getFilename();
-                $getFileRepalcePath = str_replace($updatedFileLocation . '/',"", $updateFile);
-
-                // not to repalce if found these directories
-                $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
-                $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit'];
-
-                $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
-
-
-                // Ignore directories
-                if (in_array($getDirectory, $skipDir)) {
-                    continue;
-                }
-
-                // ignore files
-                if ($file->isFile() && in_array($getFileName, $skipFiles)) {
-                    continue;
-                }
-
-                //ensuring that the directory is exits if not exits it will create that folder for us
-                if (str_contains($file->getRealPath(), 'custom/')) {
-                    $changesLogs = json_decode(Storage::get($updatedFileLocation . '/change-logs.json'))->custom;
-                    foreach ($changesLogs as $changesLog) {
-                        // check  change-logs file for which file will update from custom folder;
-                        if ($changesLog->filename == $file->getFilename()) {
-                            $fromStorage_path = storage_path('../../' . $changesLog->path);
-                            FileHelper::ensureDirectoryExists($fromStorage_path);
-                            FileHelper::put($fromStorage_path . '/' . $file->getFilename(), $file->getContent());
-                        }
+            
+            // Use generator to fetch files lazily
+            foreach ($this->getFiles($updatedFileLocation) as $updateFile) {
+                // ... the rest of your processing logic for each file
+                
+                 // todo:: remove update-file/update from file path
+                    // todo:: remove filename from $updateFile
+                    
+                    if(!file_exists(storage_path("app/" . $updateFile)) ){
+                        continue;
                     }
-
-                }
-
-
-                if (str_contains($file->getRealPath(), 'public/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
-                    //todo check if the folder name is
-                    if ($file->getFilename() !== 'app.js'){
-                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
-                        if (!$file->isDir()){
-                            FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
-                        }
+                    
+                    $file = new File(storage_path("app/" . $updateFile));
+    
+                    $getDirectory = basename(dirname($file->getRealPath()));
+                    $getFileName = $file->getFilename();
+                    $getFileRepalcePath = str_replace($updatedFileLocation . '/',"", $updateFile);
+    
+                    // not to repalce if found these directories
+                    $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
+                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit'];
+    
+                    $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
+    
+    
+                    // Ignore directories
+                    if (in_array($getDirectory, $skipDir)) {
+                        continue;
                     }
-                }
-
-                if (str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
-
-                    //todo check if the folder name is
-                    if ($getDirectory === 'page-layout') {
-                        //if file not exits in page-layout folder only them put the content
-                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
-                        if (!FileHelper::exists($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName)) {
+    
+                    // ignore files
+                    if ($file->isFile() && in_array($getFileName, $skipFiles)) {
+                        continue;
+                    }
+                    
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    
+    
+                    //ensuring that the directory is exits if not exits it will create that folder for us
+                    if (str_contains($file->getRealPath(), 'custom/')) {
+                        $changesLogs = json_decode(Storage::get($updatedFileLocation . '/change-logs.json'))->custom;
+                        foreach ($changesLogs as $changesLog) {
+                            // check  change-logs file for which file will update from custom folder;
+                            if ($changesLog->filename == $file->getFilename()) {
+                                $fromStorage_path = storage_path('../../' . $changesLog->path);
+                                FileHelper::ensureDirectoryExists($fromStorage_path);
+                                FileHelper::put($fromStorage_path . '/' . $file->getFilename(), $file->getContent());
+                            
+                            }
+                        }
+    
+                    }
+    
+    
+                    if (str_contains($file->getRealPath(), 'public/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
+                        //todo check if the folder name is
+                        if ($file->getFilename() !== 'app.js'){
+                            FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                             if (!$file->isDir()){
                                 FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                             }
                         }
-                    } else {
-                        //replace content of all assets folder file
+                    }
+    
+                    if (str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
+    
+                        //todo check if the folder name is
+                        if ($getDirectory === 'page-layout') {
+                            //if file not exits in page-layout folder only them put the content
+                            FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                            if (!FileHelper::exists($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName)) {
+                                if (!$file->isDir()){
+                                    FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+                                }
+                            }
+                        } else {
+                            //replace content of all assets folder file
+                            FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                            if (!$file->isDir()){
+                                FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+                            }
+                        }
+    
+                    }
+    
+                    if (str_contains($file->getRealPath(), '__rootFiles/')) {
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                         if (!$file->isDir()){
                             FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                         }
                     }
-
-                }
-
-                if (str_contains($file->getRealPath(), '__rootFiles/')) {
-                    FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
-                    if (!$file->isDir()){
-                        FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+    
+                    if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
+                        //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
+                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                        if (!$file->isDir()){
+                            
+                            FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+                        }
                     }
-                }
-
-                if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
-                    //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
-                    FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
-                    if (!$file->isDir()){
-                        FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
-                    }
-                }
-
+    
+                // Since this is inside the loop where each file is fetched lazily, 
+                // it won't overload memory with a huge list of file paths. 
             }
-
         }
+        
         Storage::deleteDirectory($updatedFileLocation);
-
         return true;
     }
 
@@ -489,4 +503,4 @@ class XgApiClient
         return str_replace('/'.$file->getFilename(),'',$dir);
     }
 
-}
+} 
