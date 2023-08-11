@@ -42,7 +42,7 @@ class XgApiClient
         $url = $this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
         $postFields = [
             "ip" => $ip,
-            "api_token" => Config::get("xgapiclient.has_token")
+            "api_token" => Config::get("xgapiclient.has_token") 
         ];
         $download_status = $this->chunkedDownload($url,$postFields);
 
@@ -113,11 +113,21 @@ class XgApiClient
     }
 
     public function getFiles($directory) {
-        foreach (new \DirectoryIterator($directory) as $file) {
-            if ($file->isFile()) {
-                yield $file->getPathname();
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST,
+            \RecursiveIteratorIterator::CATCH_GET_CHILD // Ignore "Permission denied" errors
+        );
+    
+        foreach ($iterator as $path) {
+            if ($path->isFile()) {
+                yield $path->getPathname();
             }
         }
+    }
+    
+    public function isDotFile($filename) {
+        return substr($filename, 0, 1) === '.';
     }
     
     public function systemUpgradeWithLatestVersion() {
@@ -131,32 +141,44 @@ class XgApiClient
             $filenames[] = $stat['name'];
         }
     
-        $updatedFileLocation = storage_path('app/update-file/update');
+        $updatedFileLocation = storage_path('app/update-file');
         $zipExtracted = $zipArchive->extractTo($updatedFileLocation);
         
         if ($zipExtracted) {
             $zipArchive->close();
             
+            
+            $fileGetLocation = $updatedFileLocation."/update";
+            
             // Use generator to fetch files lazily
-            foreach ($this->getFiles($updatedFileLocation) as $updateFile) {
+            foreach ($this->getFiles($fileGetLocation) as $updateFile) {
                 // ... the rest of your processing logic for each file
                 
-                 // todo:: remove update-file/update from file path
+                
+                    // todo:: remove update-file/update from file path
                     // todo:: remove filename from $updateFile
                     
-                    if(!file_exists(storage_path("app/" . $updateFile)) ){
+                    if(!file_exists( $updateFile) ){
                         continue;
+                        
                     }
                     
-                    $file = new File(storage_path("app/" . $updateFile));
+                    $file = new File( $updateFile); 
     
                     $getDirectory = basename(dirname($file->getRealPath()));
                     $getFileName = $file->getFilename();
-                    $getFileRepalcePath = str_replace($updatedFileLocation . '/',"", $updateFile);
+                    $getFileRepalcePath = str_replace($fileGetLocation . '/',"", $updateFile);
+                    
+                    
+                    if($this->isDotFile($getFileName)){
+                        //ignore if it is a .dot file
+                         continue;
+                    }
+                  
     
                     // not to repalce if found these directories
                     $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
-                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit'];
+                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit',".htaccess",".env"];
     
                     $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
     
@@ -175,15 +197,16 @@ class XgApiClient
                         ob_end_clean();
                     }
                     
-    
                     //ensuring that the directory is exits if not exits it will create that folder for us
                     if (str_contains($file->getRealPath(), 'custom/')) {
-                        $changesLogs = json_decode(Storage::get($updatedFileLocation . '/change-logs.json'))->custom;
+                    
+                        $changesLogs = json_decode(FileHelper::get(storage_path('app/update-file/update/change-logs.json')))->custom;
                         foreach ($changesLogs as $changesLog) {
                             // check  change-logs file for which file will update from custom folder;
                             if ($changesLog->filename == $file->getFilename()) {
                                 $fromStorage_path = storage_path('../../' . $changesLog->path);
                                 FileHelper::ensureDirectoryExists($fromStorage_path);
+                                
                                 FileHelper::put($fromStorage_path . '/' . $file->getFilename(), $file->getContent());
                             
                             }
@@ -216,7 +239,7 @@ class XgApiClient
                         } else {
                             //replace content of all assets folder file
                             FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
-                            if (!$file->isDir()){
+                            if (!$file->isDir()){ 
                                 FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                             }
                         }
@@ -234,7 +257,6 @@ class XgApiClient
                         //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                         if (!$file->isDir()){
-                            
                             FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                         }
                     }
@@ -344,6 +366,7 @@ class XgApiClient
         $available_extension = get_loaded_extensions();
         $ip = request()->ip();
         $site_version = get_static_option("site_script_version");
+
 
         $req = Http::post($this->getBaseApiUrl()."activate-license/{$licenseCode}/".$envatoUsername,[
             "has" => $has,
