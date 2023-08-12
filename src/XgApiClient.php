@@ -52,6 +52,7 @@ class XgApiClient
             $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
             if ($this->systemUpgradeWithLatestVersion()) {
                 if (!$this->systemDbUpgrade($isTenant,$version)){
+                    Artisan::call('up');
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
                     $returnVal ['type'] = "success";
                     return $returnVal;
@@ -299,7 +300,10 @@ class XgApiClient
                 }catch (\Exception $e){
 
                 }
-                Artisan::call('cache:clear');
+                try{
+                    Artisan::call('cache:clear');
+                }catch(\Exception $e){}
+
                 setEnvValue(['APP_ENV' => 'production']);
 
                 try {
@@ -324,7 +328,10 @@ class XgApiClient
                 }catch (\Exception $e){
 
                 }
-                Artisan::call('cache:clear');
+               
+                try{
+                    Artisan::call('cache:clear');
+                }catch(\Exception $e){}
 
                 //todo run a query to get all the tenant then run migrate one by one...
                  Tenant::latest()->chunk(50,function ($tenans){
