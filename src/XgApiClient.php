@@ -51,8 +51,8 @@ class XgApiClient
 
             $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
             if ($this->systemUpgradeWithLatestVersion()) {
+                Artisan::call('up');
                 if (!$this->systemDbUpgrade($isTenant,$version)){
-                    Artisan::call('up');
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
                     $returnVal ['type'] = "success";
                     return $returnVal;
