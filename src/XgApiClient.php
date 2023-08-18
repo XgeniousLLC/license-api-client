@@ -193,10 +193,18 @@ class XgApiClient
                     if ($file->isFile() && in_array($getFileName, $skipFiles)) {
                         continue;
                     }
+
+                     //ignore .git folder
+                     if (str_contains($file->getRealPath(), '.git/')) {
+                        continue;
+                    }
+                    
                     
                     if (ob_get_level()) {
                         ob_end_clean();
                     }
+
+                    
                     
                     //ensuring that the directory is exits if not exits it will create that folder for us
                     if (str_contains($file->getRealPath(), 'custom/')) {
