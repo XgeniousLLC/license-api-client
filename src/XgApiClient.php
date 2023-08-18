@@ -222,7 +222,7 @@ class XgApiClient
                         }
     
                     }
-    
+     
     
                     if (str_contains($file->getRealPath(), 'public/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
                         //todo check if the folder name is
@@ -231,6 +231,14 @@ class XgApiClient
                             if (!$file->isDir()){
                                 FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                             }
+                        }
+                    }
+                    
+                    if (str_contains($file->getRealPath(), 'Modules/')) {
+                        //todo check if the folder name is
+                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                        if (!$file->isDir()){
+                            FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                         }
                     }
     
