@@ -241,6 +241,13 @@ class XgApiClient
                             FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                         }
                     }
+                    if (str_contains($file->getRealPath(), 'plugins/')) {
+                        //todo check if the folder name is
+                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                        if (!$file->isDir()){
+                            FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+                        }
+                    }
     
                     if (str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
     
