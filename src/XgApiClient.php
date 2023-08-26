@@ -224,7 +224,7 @@ class XgApiClient
                     }
      
     
-                    if (str_contains($file->getRealPath(), 'public/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
+                    if (str_contains($file->getRealPath(), 'public/') && !str_contains($file->getRealPath(), 'views/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
                         //todo check if the folder name is
                         if ($file->getFilename() !== 'app.js'){
                             FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
@@ -241,6 +241,7 @@ class XgApiClient
                             FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                         }
                     }
+                    
                     if (str_contains($file->getRealPath(), 'plugins/')) {
                         //todo check if the folder name is
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
@@ -249,7 +250,7 @@ class XgApiClient
                         }
                     }
     
-                    if (str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))) {
+                    if (str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'views/') && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins/'))) {
     
                         //todo check if the folder name is
                         if ($getDirectory === 'page-layout') {
@@ -266,7 +267,7 @@ class XgApiClient
                             if (!$file->isDir()){ 
                                 FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
                             }
-                        }
+                        } 
     
                     }
     
@@ -277,7 +278,7 @@ class XgApiClient
                         }
                     }
     
-                    if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
+                    if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'views/') && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
                         //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                         if (!$file->isDir()){
@@ -541,10 +542,10 @@ class XgApiClient
 
 
 
-        if(str_contains($file->getRealPath(), 'public/') && (!str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins/'))){
+        if(str_contains($file->getRealPath(), 'public/') && !str_contains($file->getRealPath(), 'views/') && (!str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins/'))){
             $dir = storage_path('../' . $getFileRepalcePath);
         }
-        elseif(str_contains($file->getRealPath(), 'assets/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))){
+        elseif(str_contains($file->getRealPath(), 'assets/') && !str_contains($file->getRealPath(), 'views/') && (!str_contains($file->getRealPath(), 'Modules') && !str_contains($file->getRealPath(), 'plugins'))){
             $dir = storage_path('../../' . $getFileRepalcePath);
         }elseif(str_contains($file->getRealPath(), '__rootFiles/')){
             $dir = storage_path('../../' . str_replace('__rootFiles/', "", $getFileRepalcePath));
