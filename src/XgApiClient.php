@@ -278,7 +278,7 @@ class XgApiClient
                         }
                     }
     
-                    if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'views/') && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
+                    if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
                         //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                         if (!$file->isDir()){
