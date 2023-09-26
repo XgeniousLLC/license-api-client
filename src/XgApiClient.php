@@ -180,7 +180,7 @@ class XgApiClient
                     // not to repalce if found these directories
                     $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
                     $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit',".htaccess",".env"];
-    
+                    $rootPathSkipFiles = ['ajax.php','index.php'];
                     $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
     
     
@@ -280,6 +280,12 @@ class XgApiClient
     
                     if (!in_array($getDirectory, $diffPathFolder) && !str_contains($file->getRealPath(), 'Modules/') && !str_contains($file->getRealPath(), 'plugins') && !str_contains($file->getRealPath(), 'assets/')) {
                         //replace all files , those are not custom, assets, __rootFiles , also make sure this is not Modules, plugins Folder
+
+                         // ignore root skip files
+                        if ($file->isFile() && in_array($getFileName, $skipFiles)) {
+                            continue;
+                        }
+
                         FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
                         if (!$file->isDir()){
                             FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
