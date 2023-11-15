@@ -80,14 +80,19 @@ class XgApiClient
     }
 
     public function chunkedDownload($url,$fields){
-
-        $destination = storage_path("app/update-file/update.zip");
         
-        Storage::put('/update-file/update.zip', ""); 
+        $destination = storage_path("app/update-file/");
+        
+        if (!file_exists($destination)) {
+            mkdir($destination, 0777, true);
+        }
+        
+        file_put_contents($destination.'update.zip', ""); 
+        
         $client = new Client();
 
         // Open file handle for writing
-        $fp = fopen($destination, 'w+');
+        $fp = fopen($destination.'update.zip', 'w+');
         
         // Make the POST request
         $response = $client->post($url, [
