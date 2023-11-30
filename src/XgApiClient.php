@@ -184,7 +184,7 @@ class XgApiClient
     
                     // not to repalce if found these directories
                     $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
-                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit',".htaccess",".env"];
+                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit',".htaccess",".env","phpstan"];
                     $rootPathSkipFiles = ['ajax.php','index.php'];
                     $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
     
