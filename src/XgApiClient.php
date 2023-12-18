@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\File as FileHelper;
 use GuzzleHttp\Client;
+use Illuminate\Support\Str;
+
 
 class XgApiClient
 {
@@ -183,11 +185,47 @@ class XgApiClient
                   
     
                     // not to repalce if found these directories
-                    $skipDir = ['.fleet', '.idea', '.vscode/', "lang", '.git', 'custom-fonts'];
-                    $skipFiles = ['.DS_Store', "dynamic-style.css", "dynamic-script.js",'phpunit',".htaccess",".env","phpstan"];
+                    $skipDir = [
+                        '.fleet',
+                        '.idea',
+                        '.vscode/',
+                        "lang",
+                        '.git',
+                        'custom-fonts',
+                        // 'flysystem-local',
+                        // 'flysystem'
+                    ];
+                    $skipFiles = [
+                        '.DS_Store', 
+                        "dynamic-style.css",
+                        "dynamic-script.js",
+                        'phpunit',
+                        ".htaccess",
+                        ".env",
+                        "phpstan",
+                        'LICENSE',
+                        'readme.md',
+                        'INFO.md'
+                    ];
+                    $skipFileWithPath = [
+                        'vendor/league/flysystem-local/composer.json',
+                        'vendor/league/flysystem-local/LICENSE',
+                        'vendor/league/flysystem/composer.json'
+                    ];
+                    
                     $rootPathSkipFiles = ['ajax.php','index.php'];
                     $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
+                    
     
+    
+                    $searchString = 'update-file/update/';
+                    $folder_path_with_file = Str::after($updateFile, $searchString);
+                    
+                     // Ignore file with directory
+                    if (in_array($folder_path_with_file, $skipFileWithPath)) {
+                        continue;
+                    }
+                    
     
                     // Ignore directories
                     if (in_array($getDirectory, $skipDir)) {
@@ -198,6 +236,8 @@ class XgApiClient
                     if ($file->isFile() && in_array($getFileName, $skipFiles)) {
                         continue;
                     }
+                    
+                    
 
                      //ignore .git folder
                      if (str_contains($file->getRealPath(), '.git/')) {
