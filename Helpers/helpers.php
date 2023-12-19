@@ -14,7 +14,7 @@ if (!function_exists('getXgFtpInfoFieldValue')) {
     }
 }
 
-if (!function_exists('extension_check')) {
+if (!function_exists('xg_extension_check')) {
     function extension_check($name)
     {
         if (!extension_loaded($name)) {

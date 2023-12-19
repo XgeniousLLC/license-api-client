@@ -192,8 +192,8 @@ class XgApiClient
                         "lang",
                         '.git',
                         'custom-fonts',
-                        // 'flysystem-local',
-                        // 'flysystem'
+//                         'flysystem-local',
+//                         'flysystem'
                     ];
                     $skipFiles = [
                         '.DS_Store', 
@@ -210,7 +210,8 @@ class XgApiClient
                     $skipFileWithPath = [
                         'vendor/league/flysystem-local/composer.json',
                         'vendor/league/flysystem-local/LICENSE',
-                        'vendor/league/flysystem/composer.json'
+                        'vendor/league/flysystem/composer.json',
+                        'ajax.php/ajax.php'
                     ];
                     
                     $rootPathSkipFiles = ['ajax.php','index.php'];
@@ -331,9 +332,16 @@ class XgApiClient
                             continue;
                         }
 
-                        FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                        try {
+                            FileHelper::ensureDirectoryExists($this->getFilePath($file,$getFileRepalcePath));
+                        }catch (\Exception $e){
+                            //continue without showing error
+                        }
                         if (!$file->isDir()){
-                            FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+
+                            if (!is_file($getFileRepalcePath)){
+                                FileHelper::put($this->getFilePath($file,$getFileRepalcePath) . '/' . $getFileName, $file->getContent());
+                            }
                         }
                     }
     
