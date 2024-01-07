@@ -32,6 +32,7 @@ class XgApiClient
 
     public function downloadAndRunUpdateProcess($productUid, $isTenant,$getItemLicenseKey,$version){
 
+        //todo:: add code for get country name
         $ip = request()->ip();
         $siteUrl = url('/');
 
@@ -40,19 +41,22 @@ class XgApiClient
         set_time_limit(0);
 
         $returnVal = [];
-
         $url = $this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
         $postFields = [
             "ip" => $ip,
             "api_token" => Config::get("xgapiclient.has_token") 
         ];
+        $skip_api_url = $this->getBaseApiUrl()."latest-version-skip-files/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
+        $response  = Http::get($skip_api_url);
+        $updateInfo = $response->object();
+        
         $download_status = $this->chunkedDownload($url,$postFields);
 
         if ($download_status === 200) {
             Artisan::call('down');
 
             $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
-            if ($this->systemUpgradeWithLatestVersion()) {
+            if ($this->systemUpgradeWithLatestVersion($updateInfo)) {
                 Artisan::call('up');
                 if (!$this->systemDbUpgrade($isTenant,$version)){
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
@@ -138,9 +142,9 @@ class XgApiClient
         return substr($filename, 0, 1) === '.';
     }
     
-    public function systemUpgradeWithLatestVersion() {
+    public function systemUpgradeWithLatestVersion($updateInfo) {
         $getLatestUpdateFile = storage_path('app/update-file/update.zip');
-    
+
         $zipArchive = new \ZipArchive();
         $zipArchive->open($getLatestUpdateFile);
         $filenames = [];
@@ -195,6 +199,9 @@ class XgApiClient
 //                         'flysystem-local',
 //                         'flysystem'
                     ];
+                    if (!empty($updateInfo->skip_directories)){
+                        $skipDir = explode(",",$updateInfo->skip_directories);
+                    }
                     $skipFiles = [
                         '.DS_Store', 
                         "dynamic-style.css",
@@ -207,12 +214,21 @@ class XgApiClient
                         'readme.md',
                         'INFO.md'
                     ];
+
+                    if (!empty($updateInfo->skip_files)){
+                        $skipFiles = explode(",",$updateInfo->skip_files);
+                    }
+
                     $skipFileWithPath = [
                         'vendor/league/flysystem-local/composer.json',
                         'vendor/league/flysystem-local/LICENSE',
                         'vendor/league/flysystem/composer.json',
                         'ajax.php/ajax.php'
                     ];
+                    if (!empty($updateInfo->skip_file_with_path)){
+                        $skipFileWithPath = explode(",",$updateInfo->skip_file_with_path);
+                    }
+
                     
                     $rootPathSkipFiles = ['ajax.php','index.php'];
                     $diffPathFolder = ['custom', 'assets', '__rootFiles','phpunit'];
