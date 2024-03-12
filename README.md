@@ -66,6 +66,7 @@ Please review [our security policy](../../security/policy) on how to report secu
 
 - [Md. Abdur Rahman](https://github.com/mar-babu)
 - [Sharfiur Rahman](https://github.com/sharifur)
+- [Md Zahidul Islam](https://github.com/mdzahid-pro)
 
 ## License
 
