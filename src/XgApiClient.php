@@ -400,7 +400,7 @@ class XgApiClient
 
                 }
                 try{
-                    Artisan::call('cache:clear');
+                    Artisan::call('optimize:clear');
                 }catch(\Exception $e){}
 
                 setEnvValue(['APP_ENV' => 'production']);
@@ -429,7 +429,7 @@ class XgApiClient
                 }
                
                 try{
-                    Artisan::call('cache:clear');
+                    Artisan::call('optimize:clear');
                 }catch(\Exception $e){}
 
                 //todo run a query to get all the tenant then run migrate one by one...
