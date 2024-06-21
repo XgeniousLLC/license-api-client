@@ -19,15 +19,15 @@
         }
     ],
     "require": {
-        "php": "^8.0",
-        "laravel/framework": "^9.0",
+        "php": "^8.1",
+        "laravel/framework": "^10.0",
         "mews/purifier": "^3.4",
         "spatie/laravel-package-tools": "^1.9.2"
     },
     "require-dev": {
         "mockery/mockery": "^1.6",
-        "nunomaduro/collision": "^6.0",
-        "nunomaduro/larastan": "^1.0",
+        "nunomaduro/collision": "^7.0",
+        "nunomaduro/larastan": "^2.4.0",
         "orchestra/testbench": "^7.27.0",
         "pestphp/pest": "^1.10",
         "pestphp/pest-plugin-laravel": "^1.1",
