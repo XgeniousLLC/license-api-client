@@ -514,8 +514,8 @@ class XgApiClient
     }
 
     private function getMysqlVersionDetails(){
-        $results = DB::select( DB::raw("select version()") );
-        $mysql_version =  $results[0]?->{'version()'};
+        
+        $mysql_version = DB::scalar('select version()');
         $mariadb_version = '';
 
         if (strpos($mysql_version, 'Maria') !== false) {
