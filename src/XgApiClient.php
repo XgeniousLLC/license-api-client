@@ -57,7 +57,9 @@ class XgApiClient
             Artisan::call('down');
 
             $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
+            CacheCleaner::clearBootstrapCache();
             if ($this->systemUpgradeWithLatestVersion($updateInfo)) {
+                CacheCleaner::clearBootstrapCache();
                 Artisan::call('up');
                 if (!$this->systemDbUpgrade($isTenant,$version)){
                     $returnVal ['msg'] = __('Database Upgrade and Migration failed');
