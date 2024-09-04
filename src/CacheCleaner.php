@@ -1,6 +1,6 @@
 <?php
 
-namespace Xgenious\Installer\Helpers;
+namespace Xgenious\XgApiClient;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;

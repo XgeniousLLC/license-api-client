@@ -18,6 +18,7 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Str;
 
 
+
 class XgApiClient
 {
 
