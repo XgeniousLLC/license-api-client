@@ -441,7 +441,7 @@ class XgApiClient
                             Artisan::call('tenants:migrate', ['--force' => true,'--tenants'=>$tenant->id]);
 
                             if (class_exists('Database\Seeders\SlugModifierSeeder')) {
-                                Artisan::call('tenants:migrate', ['--class'=> SlugModifierSeeder::class, '--force' => true,'--tenants'=>$tenant->id]);
+                                Artisan::call('tenants:seed', ['--class'=> SlugModifierSeeder::class, '--force' => true,'--tenants'=>$tenant->id]);
                             }
                         }catch (\Exception $e){
                             //if issue is related to the mysql database engine,
