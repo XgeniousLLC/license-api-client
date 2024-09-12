@@ -34,6 +34,8 @@ This is the contents of the published config file:
 
 ```php
 return [
+    "base_api_url" => "https://license.xgenious.com",
+    "has_token" => "" //unique product code for license server
 ];
 ```
 
@@ -67,6 +69,7 @@ Please review [our security policy](../../security/policy) on how to report secu
 - [Md. Abdur Rahman](https://github.com/mar-babu)
 - [Sharfiur Rahman](https://github.com/sharifur)
 - [Md Zahidul Islam](https://github.com/mdzahid-pro)
+- [Mazharul Islam Suzon](https://github.com/iamsuzon)
 
 ## License
 
