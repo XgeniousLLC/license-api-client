@@ -615,7 +615,7 @@ class XgApiClient
 
     private function getBaseApiUrl()
     {
-        return "https://license.xgenious.com/api/";
+        return Config::get("xgapiclient.base_api_url","https://license.xgenious.com/api/");
     }
 
     public function getFilePath($file,$getFileRepalcePath){
