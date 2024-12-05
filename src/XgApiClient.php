@@ -596,7 +596,7 @@ class XgApiClient
         $messsage = __("purhcase code verify failed, make sure you purhcase code is valid");
         if ($req->status() === 200){
             $result = $req->object();
-            if (property_exists($result,"success") && $result->success){
+            if ($result && property_exists($result,"success") && $result->success){
                 return [
                     "success" => $result->success,
                     "message" => $result->message,
