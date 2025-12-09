@@ -36,8 +36,8 @@ class ChunkController extends Controller
             ], 400);
         }
 
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $productUid = config('xgapiclient.has_token');
 
         // Download the chunk
         $result = $this->downloader->download($chunkIndex, $licenseKey, $productUid);
@@ -124,8 +124,8 @@ class ChunkController extends Controller
      */
     public function verify(int $chunkIndex): JsonResponse
     {
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $productUid = config('xgapiclient.has_token');
 
         $result = $this->downloader->verifyWithServer($chunkIndex, $licenseKey, $productUid);
 

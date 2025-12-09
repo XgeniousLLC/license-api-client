@@ -366,11 +366,20 @@
                 <div class="text-center mb-4">
                     <p>Current Version: <span class="version-badge">{{ $currentVersion ?? 'Unknown' }}</span></p>
                 </div>
-
-                <div id="updateAvailable" class="update-info" style="display: none;">
-                    <h4>Update Available!</h4>
-                    <p>Version <strong id="newVersion"></strong> is ready to install.</p>
-                    <p class="mt-2" id="changelog"></p>
+                <div id="updateAvailable" class="update-info" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 6px;  background: #f9f9f9;">
+                    <h4 style="margin-bottom: 10px;">Update Available!</h4>
+                    <p><strong>Version <span id="newVersion"></span></strong> is ready to install.</p>
+                    
+                    <pre id="changelog" style="
+                        background: #e6f4ea;
+                        color: #2d2d2d;
+                        padding: 15px; 
+                        border-radius: 6px; 
+                        overflow-x: auto; 
+                        white-space: pre-wrap;
+                        font-family: 'Courier New', Courier, monospace;
+                        line-height: 1.5;
+                    "></pre>
                 </div>
 
                 <div id="noUpdate" style="display: none;" class="text-center text-success">
@@ -453,7 +462,7 @@
         </div>
     </div>
 
-    <script src="{{ asset('vendor/xgapiclient/js/UpdateManager.js') }}"></script>
+    <script src="{{ asset('assets/vendor/xgapiclient/js/UpdateManager.js') }}"></script>
     <script>
         // Initialize Update Manager
         const updateManager = new UpdateManager({

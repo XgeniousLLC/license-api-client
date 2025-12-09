@@ -32,7 +32,7 @@ class XgApiClientServiceProvider extends PackageServiceProvider
 
         // Publish V2 assets (JavaScript)
         $this->publishes([
-            __DIR__ . '/../resources/js/UpdateManager.js' => public_path('vendor/xgapiclient/js/UpdateManager.js'),
+            __DIR__ . '/../resources/js/UpdateManager.js' => base_path('../assets/vendor/xgapiclient/js/UpdateManager.js'),
         ], 'xgapiclient-assets');
 
         // Ensure update directory exists

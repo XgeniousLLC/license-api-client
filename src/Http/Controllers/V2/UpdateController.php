@@ -24,9 +24,9 @@ class UpdateController extends Controller
      */
     public function index()
     {
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $currentVersion = getXgFtpInfoFieldValue('item_version');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $currentVersion = get_static_option('site_script_version');
+        $productUid = config('xgapiclient.has_token');
 
         // Check for existing update status (for resume capability)
         $existingStatus = $this->statusManager->getStatus();
@@ -46,14 +46,14 @@ class UpdateController extends Controller
      */
     public function checkUpdate(): JsonResponse
     {
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $currentVersion = getXgFtpInfoFieldValue('item_version');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $currentVersion = get_static_option('site_script_version');
+        $productUid = config('xgapiclient.has_token');
 
-        if (!$licenseKey || !$productUid) {
+        if (!$licenseKey && !$productUid) {
             return response()->json([
                 'success' => false,
-                'message' => 'License key or product UID not configured',
+                'message' => 'License key or product UID not configured' . $productUid . ' ' . $licenseKey,
             ], 400);
         }
 
@@ -69,8 +69,8 @@ class UpdateController extends Controller
     public function initiate(Request $request): JsonResponse
     {
         $targetVersion = $request->input('version');
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $productUid = config('xgapiclient.has_token') ;
 
         if (!$targetVersion) {
             return response()->json([
