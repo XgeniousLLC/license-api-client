@@ -368,11 +368,11 @@
                 </div>
                 <div id="updateAvailable" class="update-info" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 6px;  background: #f9f9f9;">
                     <h4 style="margin-bottom: 10px;">Update Available!</h4>
-                    <p><strong>Version <span id="newVersion"></span></strong> is ready to install.</p>
+                    <p class="mb-2"><strong>Version <span id="newVersion"></span></strong> is ready to install.</p>
                     
                     <pre id="changelog" style="
-                        background: #e6f4ea;
-                        color: #2d2d2d;
+                        background: #e6f4eaa6;
+                        color: #2d2d2dbd;
                         padding: 15px; 
                         border-radius: 6px; 
                         overflow-x: auto; 

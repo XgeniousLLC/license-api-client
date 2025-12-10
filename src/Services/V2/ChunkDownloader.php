@@ -25,11 +25,11 @@ class ChunkDownloader
     {
         $this->ensureChunksDirExists();
 
-        $baseUrl = rtrim(Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com'), '/');
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
         $siteUrl = url('/');
         $hash = hash_hmac('sha224', $licenseKey . $siteUrl, 'xgenious');
 
-        $url = "{$baseUrl}/api/v2/download-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
+        $url = $baseUrl.'/v2/download-chunk/'.$licenseKey.'/'.$productUid.'/'.$chunkIndex;
 
         $this->statusManager->addLog("Downloading chunk {$chunkIndex}...");
         $this->statusManager->updatePhase('download', ['current_chunk' => $chunkIndex]);
@@ -119,11 +119,11 @@ class ChunkDownloader
      */
     public function verifyWithServer(int $chunkIndex, string $licenseKey, string $productUid): array
     {
-        $baseUrl = rtrim(Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com'), '/');
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
         $siteUrl = url('/');
         $hash = hash_hmac('sha224', $licenseKey . $siteUrl, 'xgenious');
 
-        $url = "{$baseUrl}/api/v2/verify-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
+        $url = $baseUrl.'/v2/verify-chunk/'.$licenseKey.'/'.$productUid.'/'.$chunkIndex;
 
         try {
             $response = Http::timeout(30)

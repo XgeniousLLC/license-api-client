@@ -15,7 +15,7 @@ class UpdateApiClient
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com'), '/');
+        $this->baseUrl = xgNormalizeBaseApiUrl();
         $this->siteUrl = url('/');
     }
 
@@ -57,7 +57,7 @@ class UpdateApiClient
             $response = Http::timeout(30)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
                 ->get(
-                    "{$this->baseUrl}/api/v2/update-info/{$this->licenseKey}/{$this->productUid}",
+                    "{$this->baseUrl}/v2/update-info/{$this->licenseKey}/{$this->productUid}",
                     array_merge($this->defaultParams(), ['current_version' => $currentVersion])
                 );
 
@@ -93,7 +93,7 @@ class UpdateApiClient
             $response = Http::timeout(60)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
                 ->get(
-                    "{$this->baseUrl}/api/v2/update-manifest/{$this->licenseKey}/{$this->productUid}",
+                    "{$this->baseUrl}/v2/update-manifest/{$this->licenseKey}/{$this->productUid}",
                     $params
                 );
 
@@ -121,7 +121,7 @@ class UpdateApiClient
     public function compareFiles(array $localFiles, ?string $version = null): array
     {
         try {
-            $url = "{$this->baseUrl}/api/v2/update-manifest/{$this->licenseKey}/{$this->productUid}/compare";
+            $url = "{$this->baseUrl}/v2/update-manifest/{$this->licenseKey}/{$this->productUid}/compare";
 
             $response = Http::timeout(120)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
@@ -162,7 +162,7 @@ class UpdateApiClient
             $response = Http::timeout(30)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
                 ->get(
-                    "{$this->baseUrl}/api/v2/update-manifest/{$this->licenseKey}/{$this->productUid}/chunks",
+                    "{$this->baseUrl}/v2/update-manifest/{$this->licenseKey}/{$this->productUid}/chunks",
                     $params
                 );
 
@@ -198,7 +198,7 @@ class UpdateApiClient
             $response = Http::timeout(30)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
                 ->get(
-                    "{$this->baseUrl}/api/v2/verify-chunk/{$this->licenseKey}/{$this->productUid}/{$chunkIndex}",
+                    "{$this->baseUrl}/v2/verify-chunk/{$this->licenseKey}/{$this->productUid}/{$chunkIndex}",
                     $params
                 );
 
@@ -234,7 +234,7 @@ class UpdateApiClient
             $response = Http::timeout(30)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
                 ->get(
-                    "{$this->baseUrl}/api/v2/download-progress/{$this->licenseKey}/{$this->productUid}",
+                    "{$this->baseUrl}/v2/download-progress/{$this->licenseKey}/{$this->productUid}",
                     $params
                 );
 
@@ -262,7 +262,7 @@ class UpdateApiClient
     public function validateSelectiveFiles(array $files, ?string $version = null): array
     {
         try {
-            $url = "{$this->baseUrl}/api/v2/download-selective/{$this->licenseKey}/{$this->productUid}/validate";
+            $url = "{$this->baseUrl}/v2/download-selective/{$this->licenseKey}/{$this->productUid}/validate";
 
             $response = Http::timeout(60)
                 ->withHeaders(['X-Site-Url' => $this->siteUrl])
@@ -299,7 +299,7 @@ class UpdateApiClient
             $params['version'] = $version;
         }
 
-        return "{$this->baseUrl}/api/v2/download-chunk/{$this->licenseKey}/{$this->productUid}/{$chunkIndex}?" .
+        return "{$this->baseUrl}/v2/download-chunk/{$this->licenseKey}/{$this->productUid}/{$chunkIndex}?" .
             http_build_query($params);
     }
 
@@ -313,7 +313,7 @@ class UpdateApiClient
             $params['version'] = $version;
         }
 
-        return "{$this->baseUrl}/api/v2/download-selective/{$this->licenseKey}/{$this->productUid}?" .
+        return "{$this->baseUrl}/v2/download-selective/{$this->licenseKey}/{$this->productUid}?" .
             http_build_query($params);
     }
 

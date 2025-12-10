@@ -43,12 +43,12 @@ class XgApiClient
         set_time_limit(0);
 
         $returnVal = [];
-        $url = $this->getBaseApiUrl()."download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
+        $url = $this->getBaseApiUrl().'/download-latest-version/'.$getItemLicenseKey.'/'.$productUid.'?site='.$siteUrl.'&has='.$has;
         $postFields = [
             "ip" => $ip,
             "api_token" => Config::get("xgapiclient.has_token") 
         ];
-        $skip_api_url = $this->getBaseApiUrl()."latest-version-skip-files/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
+        $skip_api_url = $this->getBaseApiUrl().'/latest-version-skip-files/'.$getItemLicenseKey.'/'.$productUid.'?site='.$siteUrl.'&has='.$has;
         $response  = Http::get($skip_api_url);
         $updateInfo = $response->object();
         
@@ -482,7 +482,7 @@ class XgApiClient
         $site_version = get_static_option("site_script_version");
 
 
-        $req = Http::post($this->getBaseApiUrl()."activate-license/{$licenseCode}/".$envatoUsername,[
+        $req = Http::post($this->getBaseApiUrl().'/activate-license/'.$licenseCode.'/'.$envatoUsername,[
             "has" => $has,
             "agent" => $agent,
             "site" => url("/"),
@@ -545,7 +545,7 @@ class XgApiClient
         $available_extension = get_loaded_extensions();
         $ip = request()->ip();
         $site_version = get_static_option("site_script_version");
-        $checkUpdateVersion = Http::post($this->getBaseApiUrl()."check-version-update/{$licenseKey}/{$getItemVersion}?has={$has}",[
+        $checkUpdateVersion = Http::post($this->getBaseApiUrl().'/check-version-update/'.$licenseKey.'/'.$getItemVersion.'?has='.$has,[
             "php_version" => $php_version,
             "mysql_info" => json_encode($mysql_version),
             "php_extensions" => implode(",",$available_extension),
@@ -584,7 +584,7 @@ class XgApiClient
         ];
     }
     public function VerifyLicense($purchaseCode,$email,$envatoUsername){
-        $req = Http::post($this->getBaseApiUrl()."verify-license",[
+        $req = Http::post($this->getBaseApiUrl().'/verify-license',[
             "purchase_code" => $purchaseCode,
             "email" => $email,
             "client" => $envatoUsername,
@@ -615,7 +615,7 @@ class XgApiClient
 
     private function getBaseApiUrl()
     {
-        return Config::get("xgapiclient.base_api_url","https://license.xgenious.com/api/");
+        return xgNormalizeBaseApiUrl();
     }
 
     public function getFilePath($file,$getFileRepalcePath){
