@@ -50,10 +50,10 @@ class UpdateController extends Controller
         $currentVersion = get_static_option('site_script_version');
         $productUid = config('xgapiclient.has_token');
 
-        if (!$licenseKey && !$productUid) {
+        if (!$licenseKey || !$productUid) {
             return response()->json([
                 'success' => false,
-                'message' => 'License key or product UID not configured' . $productUid . ' ' . $licenseKey,
+                'message' => 'License key or product UID not configured',
             ], 400);
         }
 
@@ -70,7 +70,7 @@ class UpdateController extends Controller
     {
         $targetVersion = $request->input('version');
         $licenseKey = get_static_option('site_license_key');
-        $productUid = config('xgapiclient.has_token') ;
+        $productUid = config('xgapiclient.has_token');
 
         if (!$targetVersion) {
             return response()->json([

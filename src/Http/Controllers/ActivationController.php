@@ -30,7 +30,7 @@ class ActivationController extends Controller
         $has = hash_hmac('sha224',$data['product_activation_key'].$data['client'].$siteUrl,'xgenious');
 
         $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
-        $response = Http::post($baseUrl.'/activate-license/'.$data['product_activation_key'].'/'.$data['client'].'?site='.$siteUrl.'&agent='.$agent.'&has='.$has);
+        $response = Http::post("{$baseUrl}/activate-license/{$data['product_activation_key']}/{$data['client']}?site={$siteUrl}&agent={$agent}&has={$has}");
 
         $result = $response->json();
 
