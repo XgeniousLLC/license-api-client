@@ -165,15 +165,20 @@ class MigrationController extends Controller
             ], 400);
         }
 
-        // Update version in license info
-        $targetVersion = $status['target_version'];
+        // Update version in license info and database
+        $targetVersion = $status['version']['target'] ?? null;
         if ($targetVersion) {
             try {
                 // Update the item_version in the license file
                 $this->updateVersionInLicenseFile($targetVersion);
-                $this->statusManager->addLog("Version updated to {$targetVersion}");
+                $this->statusManager->addLog("Version updated to {$targetVersion} in license file");
+
+                // Update database version
+                $this->updateDatabaseVersion($targetVersion);
+                $this->statusManager->addLog("Database version updated to {$targetVersion}");
             } catch (\Exception $e) {
-                Log::warning('Failed to update version in license file', ['error' => $e->getMessage()]);
+                Log::warning('Failed to update version info', ['error' => $e->getMessage()]);
+                $this->statusManager->addLog("Warning: Failed to update version info: " . $e->getMessage());
             }
         }
 
@@ -203,19 +208,51 @@ class MigrationController extends Controller
     {
         // Try common license file locations
         $possiblePaths = [
-            storage_path('app/xg-ftp-info.json'),
             base_path('xg-ftp-info.json'),
+            storage_path('app/xg-ftp-info.json'),
         ];
 
+        $updated = false;
+
+        // First try to update existing file
         foreach ($possiblePaths as $path) {
             if (file_exists($path)) {
                 $content = json_decode(file_get_contents($path), true);
-                if ($content && isset($content['item_version'])) {
+                if ($content) {
                     $content['item_version'] = $newVersion;
                     file_put_contents($path, json_encode($content, JSON_PRETTY_PRINT));
-                    return;
+                    $updated = true;
+                    // Keep looking to update all copies if multiple exist
                 }
             }
+        }
+
+        // If no file was updated, create one in root
+        if (!$updated) {
+            $path = base_path('xg-ftp-info.json');
+            $content = [
+                'item_version' => $newVersion,
+                'created_at' => now()->toIso8601String(),
+                'updated_by' => 'XgApiClient V2',
+            ];
+            file_put_contents($path, json_encode($content, JSON_PRETTY_PRINT));
+        }
+    }
+
+    /**
+     * Update version in database
+     */
+    protected function updateDatabaseVersion(string $newVersion): void
+    {
+        try {
+            \Illuminate\Support\Facades\DB::table('static_options')
+                ->updateOrInsert(
+                    ['option_name' => 'site_script_version'],
+                    ['option_value' => $newVersion]
+                );
+        } catch (\Exception $e) {
+            Log::error('Failed to update database version', ['error' => $e->getMessage()]);
+            throw $e;
         }
     }
 

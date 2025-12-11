@@ -84,6 +84,13 @@ class UpdateController extends Controller
         // Get chunks info from server
         $chunksInfo = $this->apiClient->getChunks($targetVersion);
 
+        // Log the response for debugging
+        \Illuminate\Support\Facades\Log::info('Update initiate - chunks info response', [
+            'success' => $chunksInfo['success'] ?? false,
+            'data' => $chunksInfo['data'] ?? null,
+            'message' => $chunksInfo['message'] ?? null,
+        ]);
+
         if (!($chunksInfo['success'] ?? false)) {
             return response()->json([
                 'success' => false,
@@ -93,13 +100,22 @@ class UpdateController extends Controller
 
         // Initialize status
         $result = $this->statusManager->initiate($targetVersion, [
-            'total_chunks' => $chunksInfo['data']['total_chunks'] ?? 0,
-            'total_size' => $chunksInfo['data']['total_size'] ?? 0,
-            'chunk_size' => $chunksInfo['data']['chunk_size'] ?? 0,
-            'zip_hash' => $chunksInfo['data']['zip_hash'] ?? null,
+            'current_version' => get_static_option('site_script_version'),
+            'chunked_download' => [
+                'total_chunks' => $chunksInfo['data']['total_chunks'] ?? 0,
+                'total_size' => $chunksInfo['data']['total_size'] ?? 0,
+                'chunk_size' => $chunksInfo['data']['chunk_size'] ?? 0,
+                'zip_hash' => $chunksInfo['data']['zip_hash'] ?? '',
+                'total_files' => $chunksInfo['data']['total_files'] ?? 0,
+            ],
         ]);
 
-        return response()->json($result);
+
+        return response()->json([
+            'success' => true,
+            'status' => $result,
+        ]);
+
     }
 
     /**

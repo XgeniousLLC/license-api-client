@@ -213,8 +213,8 @@ class UpdateStatusManager
             return false;
         }
 
-        // Can resume if not completed or in fatal error state
-        return !in_array($status['phase'], ['completed', 'fatal_error']);
+        // Can resume if not completed or in error state
+        return !in_array($status['phase'], ['completed', 'fatal_error', 'error', 'cancelled']);
     }
 
     /**
@@ -358,5 +358,33 @@ class UpdateStatusManager
             $this->save($status);
             $this->addLog('Update cancelled by user');
         }
+    }
+    /**
+     * Cleanup temporary files
+     */
+    public function cleanup(): array
+    {
+        $paths = $this->getPaths();
+        $results = [];
+
+        // Delete chunks directory
+        if (File::isDirectory($paths['chunks'])) {
+            $results['chunks'] = File::deleteDirectory($paths['chunks']);
+        }
+
+        // Delete extracted directory
+        if (File::isDirectory($paths['extracted'])) {
+            $results['extracted'] = File::deleteDirectory($paths['extracted']);
+        }
+
+        // Delete ZIP file
+        if (File::exists($paths['zip'])) {
+            $results['zip'] = File::delete($paths['zip']);
+        }
+
+        // Note: We keep the backup directory for safety until manual cleanup
+        // or next update overwrites it
+
+        return $results;
     }
 }

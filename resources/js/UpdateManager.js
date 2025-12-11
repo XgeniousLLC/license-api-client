@@ -11,11 +11,11 @@ class UpdateManager {
         this.csrfToken = options.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content;
 
         // Callbacks
-        this.onProgress = options.onProgress || (() => {});
-        this.onLog = options.onLog || (() => {});
-        this.onPhaseChange = options.onPhaseChange || (() => {});
-        this.onError = options.onError || (() => {});
-        this.onComplete = options.onComplete || (() => {});
+        this.onProgress = options.onProgress || (() => { });
+        this.onLog = options.onLog || (() => { });
+        this.onPhaseChange = options.onPhaseChange || (() => { });
+        this.onError = options.onError || (() => { });
+        this.onComplete = options.onComplete || (() => { });
 
         // State
         this.isRunning = false;
@@ -35,6 +35,7 @@ class UpdateManager {
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseUrl}${endpoint}`;
+
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -146,6 +147,9 @@ class UpdateManager {
                 await this.resumeFromPhase(resumePoint, isTenant);
             } else {
                 // Start fresh update
+                if (!version) {
+                    throw new Error('Version parameter is required to start a new update. Please check for updates first.');
+                }
                 this.log(`Starting update to version ${version}`);
                 await this.initiateUpdate(version, isTenant);
             }
@@ -179,6 +183,12 @@ class UpdateManager {
         }
 
         this.status = initResult.status;
+
+        // Validate that we have valid chunk information
+        if (!this.status.download || this.status.download.total_chunks <= 0) {
+            throw new Error('Invalid update configuration: No chunks to download. The server may not have the update package ready. Please try again later or contact support.');
+        }
+
         this.log(`Update initialized. ${initResult.status.download.total_chunks} chunks to download.`);
 
         // Continue with download phase
@@ -197,6 +207,15 @@ class UpdateManager {
         const phase = resumePoint.phase;
 
         switch (phase) {
+            case 'initialized':
+                await this.runDownloadPhase();
+                await this.runMergePhase();
+                await this.runExtractionPhase();
+                await this.runReplacementPhase();
+                await this.runMigrationPhase(isTenant);
+                await this.runCompletionPhase();
+                break;
+
             case 'download':
                 await this.runDownloadPhase();
                 await this.runMergePhase();
@@ -232,10 +251,27 @@ class UpdateManager {
                 await this.runCompletionPhase();
                 break;
 
+            case 'error':
+            case 'fatal_error':
+                // Update is in error state, cancel it and restart
+                this.log('Previous update failed. Cancelling corrupted update...', 'warning');
+                await this.cancel();
+
+                // Get the version from resume point before it was cancelled
+                const targetVersion = resumePoint.target_version;
+                if (targetVersion) {
+                    this.log(`Restarting update to version ${targetVersion}...`, 'info');
+                    await this.initiateUpdate(targetVersion, isTenant);
+                } else {
+                    throw new Error('Previous update failed and has been cancelled. Please start a new update manually.');
+                }
+                break;
+
             default:
                 throw new Error(`Unknown phase to resume: ${phase}`);
         }
     }
+
 
     /**
      * Set current phase

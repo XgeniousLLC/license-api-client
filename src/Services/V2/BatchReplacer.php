@@ -83,9 +83,13 @@ class BatchReplacer
             $skippedInBatch = 0;
             $errors = [];
 
+            $realRoot = $this->detectUpdateRoot($paths['extracted']);
+
             for ($i = $startIndex; $i < $endIndex; $i++) {
                 $relativePath = $this->fileList[$i];
-                $sourcePath = $paths['extracted'] . '/' . $relativePath;
+                
+                // Use detected root
+                $sourcePath = $realRoot . '/' . $relativePath;
 
                 // Check if should skip
                 if ($this->shouldSkip($relativePath)) {
@@ -111,6 +115,8 @@ class BatchReplacer
                     // Backup original file if enabled and exists
                     if (Config::get('xgapiclient.update.enable_backup', false) && File::exists($destPath)) {
                         $this->backupFile($destPath, $relativePath);
+                    } elseif (Config::get('xgapiclient.update.enable_backup', false)) {
+                        Log::info("Skipping backup for {$relativePath} (destination not found)");
                     }
 
                     // Copy file
@@ -119,6 +125,7 @@ class BatchReplacer
                         $replacedInBatch++;
                     } else {
                         $errors[] = $relativePath;
+                        Log::warning("Source file not found: {$sourcePath}");
                     }
 
                 } catch (\Exception $e) {
@@ -191,8 +198,16 @@ class BatchReplacer
             return;
         }
 
+        // Detect actual root of the update
+        $realRoot = $this->detectUpdateRoot($extractedPath);
+        
+        // Log the detected root for debugging
+        if ($realRoot !== $extractedPath) {
+            $this->statusManager->addLog("Detected nested update structure. Root: " . basename($realRoot));
+        }
+
         $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($extractedPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+            new \RecursiveDirectoryIterator($realRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::SELF_FIRST
         );
 
@@ -201,7 +216,8 @@ class BatchReplacer
                 continue;
             }
 
-            $relativePath = str_replace($extractedPath . '/', '', $file->getPathname());
+            // Calculate relative path from the REAL root
+            $relativePath = str_replace($realRoot . '/', '', $file->getPathname());
             $relativePath = str_replace('\\', '/', $relativePath); // Normalize for Windows
             $this->fileList[] = $relativePath;
         }
@@ -216,6 +232,42 @@ class BatchReplacer
             'total_files' => count($this->fileList),
             'total_batches' => $totalBatches,
         ]);
+    }
+
+    /**
+     * Detect the actual root directory of the update
+     * Skips wrapper folders like "HelpNest-update-v1.1.0/update/"
+     */
+    protected function detectUpdateRoot(string $path): string
+    {
+        $currentPath = $path;
+        
+        // Safety limit to prevent infinite loops
+        for ($i = 0; $i < 5; $i++) {
+            $files = File::files($currentPath);
+            $directories = File::directories($currentPath);
+
+            // If there are files, this is likely the root (or contains files we need)
+            if (count($files) > 0) {
+                return $currentPath;
+            }
+
+            // If there are multiple directories, this is likely the root
+            if (count($directories) > 1) {
+                return $currentPath;
+            }
+
+            // If there is exactly one directory and no files, drill down
+            if (count($directories) === 1) {
+                $currentPath = $directories[0];
+                continue;
+            }
+
+            // Empty directory? Return original path
+            return $path;
+        }
+
+        return $currentPath;
     }
 
     /**
@@ -285,9 +337,9 @@ class BatchReplacer
             return null;
         }
 
-        // Handle assets/ directory - goes to root assets folder
+        // Handle assets/ directory - goes to root assets folder (one level up from core)
         if (str_starts_with($relativePath, 'assets/')) {
-            return base_path($relativePath);
+            return base_path('../' . $relativePath);
         }
 
         // Handle Modules/ directory
@@ -319,6 +371,7 @@ class BatchReplacer
             }
 
             File::copy($originalPath, $backupPath);
+            Log::info("Backed up: {$relativePath}");
         } catch (\Exception $e) {
             Log::warning("Failed to backup file: {$relativePath}", ['error' => $e->getMessage()]);
         }
@@ -330,9 +383,13 @@ class BatchReplacer
     protected function enableMaintenanceMode(): void
     {
         try {
-            Artisan::call('down');
+            // Enable maintenance mode with secret to allow update routes
+            Artisan::call('down', [
+                '--secret' => 'xg-update-in-progress',
+                '--render' => 'errors::503',
+            ]);
             $this->statusManager->update(['maintenance_mode' => true]);
-            $this->statusManager->addLog('Maintenance mode enabled');
+            $this->statusManager->addLog('Maintenance mode enabled with update bypass');
         } catch (\Exception $e) {
             Log::warning("Failed to enable maintenance mode", ['error' => $e->getMessage()]);
         }

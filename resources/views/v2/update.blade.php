@@ -476,7 +476,7 @@
         });
 
         let updateInfo = null;
-        const isTenant = {{ $existingStatus['is_tenant'] ?? 'false' }};
+        const isTenant = @json($existingStatus['is_tenant'] ?? false);
 
         // Check for updates
         async function checkForUpdate() {
@@ -519,8 +519,18 @@
 
         // Resume update
         async function resumeUpdate() {
+            // Check for updates first to get the version
+            if (!updateInfo) {
+                try {
+                    updateInfo = await updateManager.checkForUpdate();
+                } catch (error) {
+                    console.error('Failed to check for updates:', error);
+                }
+            }
+            
             showProgressSection();
-            await updateManager.startUpdate(null, isTenant);
+            // Pass the version from updateInfo, or null if not available (will be handled by error phase logic)
+            await updateManager.startUpdate(updateInfo?.latest_version || null, isTenant);
         }
 
         // Pause update

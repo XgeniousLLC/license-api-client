@@ -150,6 +150,15 @@ class ChunkController extends Controller
         $downloadedChunks = $this->downloader->getDownloadedChunks();
         $totalChunks = $status['download']['total_chunks'];
 
+        // Validate that we have a valid update configuration
+        if ($totalChunks <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid update configuration: total_chunks is 0. Please cancel this update and start fresh.',
+                'total_chunks' => $totalChunks,
+            ], 400);
+        }
+
         if (count($downloadedChunks) < $totalChunks) {
             return response()->json([
                 'success' => false,
