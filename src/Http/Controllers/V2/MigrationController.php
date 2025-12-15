@@ -70,7 +70,6 @@ class MigrationController extends Controller
                 'success' => true,
                 'message' => 'Database migration completed',
             ]);
-
         } catch (\Exception $e) {
             Log::error('Migration failed', ['error' => $e->getMessage()]);
             $this->statusManager->recordError('migration_failed', $e->getMessage());
@@ -87,6 +86,24 @@ class MigrationController extends Controller
                 'message' => 'Migration failed: ' . $e->getMessage(),
             ], 500);
         }
+
+        // Update XgApiClient package files after migration
+        try {
+            $replacer = new \Xgenious\XgApiClient\Services\V2\BatchReplacer($this->statusManager);
+            $selfUpdateResult = $replacer->updateSelfPackage();
+
+            if ($selfUpdateResult['success'] && $selfUpdateResult['replaced'] > 0) {
+                $this->statusManager->addLog("Self-update: Updated {$selfUpdateResult['replaced']} XgApiClient package files");
+            }
+        } catch (\Exception $e) {
+            Log::warning('Self-update warning', ['error' => $e->getMessage()]);
+            $this->statusManager->addLog('Self-update warning: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Database migration completed',
+        ]);
     }
 
     /**

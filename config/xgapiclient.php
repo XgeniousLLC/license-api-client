@@ -82,7 +82,18 @@ return [
         | Recommended for production but increases update time and storage.
         |
         */
-        "enable_backup" => env('XG_UPDATE_ENABLE_BACKUP', false),
+        "enable_backup" => env('XG_UPDATE_ENABLE_BACKUP', true),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Smart Vendor Replacement
+        |--------------------------------------------------------------------------
+        |
+        | Whether to analyze composer dependencies and only replace changed
+        | vendor packages. This can significantly speed up updates.
+        |
+        */
+        "smart_vendor_replacement" => env('XG_UPDATE_SMART_VENDOR', true),
 
         /*
         |--------------------------------------------------------------------------

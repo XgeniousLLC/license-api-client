@@ -54,6 +54,7 @@ Route::prefix('update/v2')->name('xg.update.v2.')->group(function () {
         Route::post('/batch', [ReplacementController::class, 'replaceBatch'])->name('batch');
         Route::get('/progress', [ReplacementController::class, 'progress'])->name('progress');
         Route::get('/files', [ReplacementController::class, 'fileList'])->name('files');
+        Route::get('/composer-analysis', [ReplacementController::class, 'composerAnalysis'])->name('composer-analysis');
         Route::post('/skip-files', [ReplacementController::class, 'setSkipFiles'])->name('skip-files');
         Route::post('/skip-directories', [ReplacementController::class, 'setSkipDirectories'])->name('skip-directories');
         Route::post('/reset', [ReplacementController::class, 'reset'])->name('reset');
@@ -69,4 +70,3 @@ Route::prefix('update/v2')->name('xg.update.v2.')->group(function () {
         Route::post('/finalize', [MigrationController::class, 'finalize'])->name('finalize');
     });
 });
-

@@ -12,6 +12,7 @@
             --success-color: #22c55e;
             --warning-color: #f59e0b;
             --danger-color: #ef4444;
+            --info-color: #3b82f6;
             --bg-color: #f8fafc;
             --card-bg: #ffffff;
             --text-color: #1e293b;
@@ -23,12 +24,18 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+
         }
 
         .update-container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 40px auto;
             padding: 0 20px;
+            min-width: 750px;
         }
 
         .update-card {
@@ -54,6 +61,67 @@
             color: var(--text-muted);
         }
 
+        .composer-analysis {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .composer-analysis.visible {
+            display: block;
+        }
+
+        .composer-analysis h5 {
+            color: var(--info-color);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .composer-stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .composer-stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+
+        .composer-stat .badge {
+            font-size: 11px;
+            padding: 3px 8px;
+        }
+
+        .composer-details {
+            font-size: 12px;
+            color: #1e40af;
+            margin-top: 8px;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .composer-details ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .composer-details li {
+            margin: 2px 0;
+        }
+
         /* Phase Progress */
         .phase-progress {
             display: flex;
@@ -76,10 +144,10 @@
         .phase-item {
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: initial;
             position: relative;
             z-index: 1;
-            flex: 1;
+            justify-content: space-between;
         }
 
         .phase-icon {
@@ -405,6 +473,27 @@
 
             <!-- Update Progress Section -->
             <div id="updateProgressSection" class="update-progress-section">
+                <div id="composerAnalysis" class="composer-analysis">
+                    <h5>
+                        <span>📦</span> Composer Dependencies Analysis
+                    </h5>
+                    <div class="composer-stats">
+                        <div class="composer-stat">
+                            <span>Updated:</span>
+                            <span class="badge badge-primary" id="composerChanged">0</span>
+                        </div>
+                        <div class="composer-stat">
+                            <span>Added:</span>
+                            <span class="badge badge-success" id="composerAdded">0</span>
+                        </div>
+                        <div class="composer-stat">
+                            <span>Removed:</span>
+                            <span class="badge badge-danger" id="composerRemoved">0</span>
+                        </div>
+                    </div>
+                    <div id="composerDetails" class="composer-details"></div>
+                </div>
+
                 <div class="status-grid">
                     <div class="status-item">
                         <div class="value" id="progressPercent">0%</div>
@@ -473,10 +562,58 @@
             onPhaseChange: handlePhaseChange,
             onError: handleError,
             onComplete: handleComplete,
+            onComposerAnalysis: handleComposerAnalysis,
         });
 
         let updateInfo = null;
         const isTenant = @json($existingStatus['is_tenant'] ?? false);
+
+        // Handle composer analysis display
+        function handleComposerAnalysis(analysis) {
+            const card = document.getElementById('composerAnalysis');
+            
+            if (!analysis || analysis.status === 'not_analyzed' || !analysis.has_changes) {
+                card.classList.remove('visible');
+                return;
+            }
+
+            card.classList.add('visible');
+
+            // Update stats
+            document.getElementById('composerChanged').textContent = analysis.statistics.changed;
+            document.getElementById('composerAdded').textContent = analysis.statistics.added;
+            document.getElementById('composerRemoved').textContent = analysis.statistics.removed;
+
+            // Build details
+            const details = document.getElementById('composerDetails');
+            let html = '';
+
+            if (Object.keys(analysis.details.changed_packages).length > 0) {
+                html += '<strong>Updated Packages:</strong><ul>';
+                for (const [pkg, versions] of Object.entries(analysis.details.changed_packages)) {
+                    html += `<li>${pkg}: ${versions.old} → ${versions.new}</li>`;
+                }
+                html += '</ul>';
+            }
+
+            if (Object.keys(analysis.details.added_packages).length > 0) {
+                html += '<strong>Added Packages:</strong><ul>';
+                for (const [pkg, version] of Object.entries(analysis.details.added_packages)) {
+                    html += `<li>${pkg}: ${version}</li>`;
+                }
+                html += '</ul>';
+            }
+
+            if (Object.keys(analysis.details.removed_packages).length > 0) {
+                html += '<strong>Removed Packages:</strong><ul>';
+                for (const [pkg, version] of Object.entries(analysis.details.removed_packages)) {
+                    html += `<li>${pkg}: ${version}</li>`;
+                }
+                html += '</ul>';
+            }
+
+            details.innerHTML = html;
+        }
 
         // Check for updates
         async function checkForUpdate() {

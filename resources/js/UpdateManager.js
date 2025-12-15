@@ -16,6 +16,7 @@ class UpdateManager {
         this.onPhaseChange = options.onPhaseChange || (() => { });
         this.onError = options.onError || (() => { });
         this.onComplete = options.onComplete || (() => { });
+        this.onComposerAnalysis = options.onComposerAnalysis || (() => { });
 
         // State
         this.isRunning = false;
@@ -23,11 +24,12 @@ class UpdateManager {
         this.currentPhase = null;
         this.status = null;
         this.abortController = null;
+        this.composerAnalysis = null;
 
         // Configuration
         this.retryAttempts = options.retryAttempts || 3;
         this.retryDelay = options.retryDelay || 2000;
-        this.chunkConcurrency = options.chunkConcurrency || 1; // Download one at a time for reliability
+        this.chunkConcurrency = options.chunkConcurrency || 1;
     }
 
     /**
@@ -121,6 +123,20 @@ class UpdateManager {
             const result = await this.request('/resume-info');
             return result.can_resume ? result.resume_point : null;
         } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Get composer analysis
+     */
+    async getComposerAnalysis() {
+        try {
+            const result = await this.request('/replacement/composer-analysis');
+            this.composerAnalysis = result.report;
+            return result.report;
+        } catch (error) {
+            this.log(`Failed to get composer analysis: ${error.message}`, 'warning');
             return null;
         }
     }
@@ -412,6 +428,9 @@ class UpdateManager {
         this.log('Starting file replacement...');
         this.log('Enabling maintenance mode...');
 
+        // Get and display composer analysis on first batch
+        let composerAnalyzed = false;
+
         let batch = 0;
         let hasMore = true;
 
@@ -427,6 +446,18 @@ class UpdateManager {
 
             if (!result.success) {
                 throw new Error(result.error || 'Replacement failed');
+            }
+
+            // On first batch, get composer analysis
+            if (batch === 0 && !composerAnalyzed) {
+                const analysis = await this.getComposerAnalysis();
+                if (analysis && analysis.has_changes) {
+                    this.log(`Composer: ${analysis.statistics.changed} package(s) updated, ${analysis.statistics.added} added, ${analysis.statistics.removed} removed`, 'info');
+                    this.onComposerAnalysis(analysis);
+                } else if (analysis) {
+                    this.log('No Composer dependency changes detected', 'info');
+                }
+                composerAnalyzed = true;
             }
 
             this.updateProgress('replacement', result.percent, {
