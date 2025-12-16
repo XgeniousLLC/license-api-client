@@ -55,3 +55,31 @@ if (!function_exists('XGsetEnvValue')) {
         return true;
     }
 }
+
+
+if (!function_exists('xgNormalizeBaseApiUrl')) {
+    /**
+     * Normalize base API URL to ensure it always ends with /api
+     * Handles any variation: https://license.xgenious.com, https://license.xgenious.com/api, https://license.xgenious.com/api/
+     * 
+     * @param string|null $url The base URL to normalize
+     * @return string Normalized URL ending with /api (no trailing slash)
+     */
+    function xgNormalizeBaseApiUrl($url = null)
+    {
+        // Get from config if not provided
+        if ($url === null) {
+            $url = \Illuminate\Support\Facades\Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com');
+        }
+        
+        // Remove trailing slashes
+        $url = rtrim($url, '/');
+        
+        // Check if /api is already in the URL
+        if (!str_ends_with($url, '/api')) {
+            $url .= '/api';
+        }
+        
+        return $url;
+    }
+}

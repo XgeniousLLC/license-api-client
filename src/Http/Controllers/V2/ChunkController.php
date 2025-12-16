@@ -36,8 +36,8 @@ class ChunkController extends Controller
             ], 400);
         }
 
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $productUid = config('xgapiclient.has_token');
 
         // Download the chunk
         $result = $this->downloader->download($chunkIndex, $licenseKey, $productUid);
@@ -124,8 +124,8 @@ class ChunkController extends Controller
      */
     public function verify(int $chunkIndex): JsonResponse
     {
-        $licenseKey = getXgFtpInfoFieldValue('item_license_key');
-        $productUid = getXgFtpInfoFieldValue('product_uid');
+        $licenseKey = get_static_option('site_license_key');
+        $productUid = config('xgapiclient.has_token');
 
         $result = $this->downloader->verifyWithServer($chunkIndex, $licenseKey, $productUid);
 
@@ -149,6 +149,15 @@ class ChunkController extends Controller
         // Check if all chunks are downloaded
         $downloadedChunks = $this->downloader->getDownloadedChunks();
         $totalChunks = $status['download']['total_chunks'];
+
+        // Validate that we have a valid update configuration
+        if ($totalChunks <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid update configuration: total_chunks is 0. Please cancel this update and start fresh.',
+                'total_chunks' => $totalChunks,
+            ], 400);
+        }
 
         if (count($downloadedChunks) < $totalChunks) {
             return response()->json([

@@ -19,7 +19,8 @@ class SystemUpgradeController extends Controller
 
         $has = hash_hmac('sha224',$licenseKay.$getItemVersion,'xgenious');
 
-        $checkUpdateVersion = Http::post(Config::get('xgapiclient.base_api_url')."/check-version-update/{$licenseKay}/{$getItemVersion}?has={$has}");
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
+        $checkUpdateVersion = Http::post("{$baseUrl}/check-version-update/{$licenseKay}/{$getItemVersion}?has={$has}");
 
         $result = $checkUpdateVersion->json();
         //dd($result);
@@ -60,7 +61,8 @@ class SystemUpgradeController extends Controller
 
         $has = hash_hmac('sha224',$getItemLicenseKey.$siteUrl,'xgenious');
 
-        $downloadResponse = Http::post(Config::get('xgapiclient.base_api_url')."/download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}");
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
+        $downloadResponse = Http::post("{$baseUrl}/download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}");
 
         $downloadableFile = $downloadResponse->getBody()->getContents();
         $filename = 'update.zip';

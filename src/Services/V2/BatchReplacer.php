@@ -10,15 +10,19 @@ use Illuminate\Support\Facades\Log;
 class BatchReplacer
 {
     protected UpdateStatusManager $statusManager;
+    protected ComposerDiffHandler $composerDiff;
     protected array $fileList = [];
     protected bool $fileListBuilt = false;
     protected array $skipFiles = [];
     protected array $skipDirectories = [];
     protected array $skipFilesWithPath = [];
+    protected bool $composerAnalyzed = false;
+    protected $shouldReplaceCallback = null;
 
     public function __construct(UpdateStatusManager $statusManager)
     {
         $this->statusManager = $statusManager;
+        $this->composerDiff = new ComposerDiffHandler($statusManager);
         $this->loadSkipLists();
     }
 
@@ -32,6 +36,10 @@ class BatchReplacer
         if ($status) {
             $this->skipFiles = array_filter(array_map('trim', explode(',', $status['skip_files'] ?? '')));
             $this->skipDirectories = array_filter(array_map('trim', explode(',', $status['skip_directories'] ?? '')));
+
+            if (isset($status['composer_analysis'])) {
+                $this->composerAnalyzed = true;
+            }
         }
 
         // Add default skip files if not already present
@@ -43,21 +51,39 @@ class BatchReplacer
         $this->skipDirectories = array_unique(array_merge($this->skipDirectories, $defaultSkipDirs));
     }
 
-    /**
-     * Replace a batch of files
-     */
+    public function analyzeComposerChanges(string $extractedPath): array
+    {
+        $realRoot = $this->detectUpdateRoot($extractedPath);
+        $result = $this->composerDiff->analyze($realRoot);
+        $this->composerAnalyzed = true;
+
+        $this->statusManager->update([
+            'composer_analysis' => $result,
+        ]);
+
+        return $result;
+    }
+
     public function replaceBatch(int $batchNumber, ?int $batchSize = null): array
     {
         $batchSize = $batchSize ?? Config::get('xgapiclient.update.replacement_batch_size', 50);
         $paths = $this->statusManager->getPaths();
 
         try {
-            // Build file list on first call
+            $realRoot = $this->detectUpdateRoot($paths['extracted']);
+
             if (!$this->fileListBuilt) {
                 $this->buildFileList($paths['extracted']);
             }
 
-            // Enable maintenance mode on first batch
+            if ($batchNumber === 0 && !$this->composerAnalyzed) {
+                $composerAnalysis = $this->analyzeComposerChanges($paths['extracted']);
+
+                if ($composerAnalysis['has_changes']) {
+                    $this->composerDiff->removeObsoletePackages();
+                }
+            }
+
             if ($batchNumber === 0) {
                 $this->enableMaintenanceMode();
             }
@@ -83,9 +109,12 @@ class BatchReplacer
             $skippedInBatch = 0;
             $errors = [];
 
+            $realRoot = $this->detectUpdateRoot($paths['extracted']);
+
             for ($i = $startIndex; $i < $endIndex; $i++) {
                 $relativePath = $this->fileList[$i];
-                $sourcePath = $paths['extracted'] . '/' . $relativePath;
+
+                $sourcePath = $realRoot . '/' . $relativePath;
 
                 // Check if should skip
                 if ($this->shouldSkip($relativePath)) {
@@ -93,11 +122,40 @@ class BatchReplacer
                     continue;
                 }
 
-                // Determine destination path
-                $destPath = $this->getDestinationPath($relativePath);
+                // vendor package handling
+                if (str_starts_with($relativePath, 'vendor/')) {
+                    // Always skip XgApiClient package
+                    if (str_starts_with($relativePath, 'vendor/xgenious/xgapiclient/')) {
+                        $skippedInBatch++;
+                        continue;
+                    }
+
+                    // Use filtering for other vendor files
+                    // Only replaces: new packages, updated packages, or missing files
+                    // Skips: unchanged packages that already exist
+                    if (!$this->composerDiff->shouldReplaceVendorPath($relativePath)) {
+                        $skippedInBatch++;
+                        continue;
+                    }
+                }
+
+                if ($this->shouldReplaceCallback && is_callable($this->shouldReplaceCallback)) {
+                    if (!call_user_func($this->shouldReplaceCallback, $relativePath)) {
+                        $skippedInBatch++;
+                        continue;
+                    }
+                }
+
+                try {
+                    $destPath = $this->getDestinationPath($relativePath);
+                } catch (\Exception $e) {
+                    Log::error("getDestinationPath exception for {$relativePath}: " . $e->getMessage());
+                    $destPath = null;
+                }
 
                 if (!$destPath) {
                     $skippedInBatch++;
+                    Log::warning("Destination path is null for: {$relativePath}");
                     continue;
                 }
 
@@ -113,17 +171,37 @@ class BatchReplacer
                         $this->backupFile($destPath, $relativePath);
                     }
 
-                    // Copy file
                     if (File::exists($sourcePath)) {
-                        File::copy($sourcePath, $destPath);
-                        $replacedInBatch++;
+
+                        if (function_exists('opcache_invalidate') && str_ends_with($destPath, '.php')) {
+                            @opcache_invalidate($destPath, true);
+                        }
+
+                        clearstatcache(true, $destPath);
+
+                        $copyResult = File::copy($sourcePath, $destPath);
+
+                        if ($copyResult) {
+                            clearstatcache(true, $destPath);
+                            if (function_exists('opcache_invalidate') && str_ends_with($destPath, '.php')) {
+                                @opcache_invalidate($destPath, true);
+                            }
+
+                            $replacedInBatch++;
+                        } else {
+                            $errors[] = $relativePath;
+                            Log::error("File::copy returned false for: {$relativePath}");
+                        }
                     } else {
                         $errors[] = $relativePath;
+                        Log::error("Source file not found: {$sourcePath}");
                     }
-
                 } catch (\Exception $e) {
                     $errors[] = $relativePath;
-                    Log::warning("Failed to replace file: {$relativePath}", ['error' => $e->getMessage()]);
+                    Log::error("Failed to replace file: {$relativePath}", [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
                 }
             }
 
@@ -134,7 +212,6 @@ class BatchReplacer
 
             $totalReplaced = $previousReplaced + $replacedInBatch;
             $totalSkipped = $previousSkipped + $skippedInBatch;
-            $processed = $startIndex + $replacedInBatch + $skippedInBatch;
             $percent = $totalFiles > 0 ? round(($endIndex / $totalFiles) * 100) : 100;
 
             // Update status
@@ -163,10 +240,16 @@ class BatchReplacer
                 'percent' => $percent,
                 'next_batch' => $batchNumber + 1,
                 'errors' => $errors,
+                'composer_update_required' => $this->composerDiff->requiresComposerUpdate(),
             ];
 
         } catch (\Exception $e) {
-            Log::error("Replacement failed", ['batch' => $batchNumber, 'error' => $e->getMessage()]);
+            Log::error("Replacement failed", [
+                'batch' => $batchNumber,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             $this->statusManager->recordError('replacement_failed', $e->getMessage(), [
                 'batch' => $batchNumber,
             ]);
@@ -191,8 +274,16 @@ class BatchReplacer
             return;
         }
 
+        // Detect actual root of the update
+        $realRoot = $this->detectUpdateRoot($extractedPath);
+        
+        // Log the detected root for debugging
+        if ($realRoot !== $extractedPath) {
+            $this->statusManager->addLog("Detected nested update structure. Root: " . basename($realRoot));
+        }
+
         $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($extractedPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+            new \RecursiveDirectoryIterator($realRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::SELF_FIRST
         );
 
@@ -201,7 +292,8 @@ class BatchReplacer
                 continue;
             }
 
-            $relativePath = str_replace($extractedPath . '/', '', $file->getPathname());
+            // Calculate relative path from the REAL root
+            $relativePath = str_replace($realRoot . '/', '', $file->getPathname());
             $relativePath = str_replace('\\', '/', $relativePath); // Normalize for Windows
             $this->fileList[] = $relativePath;
         }
@@ -216,6 +308,42 @@ class BatchReplacer
             'total_files' => count($this->fileList),
             'total_batches' => $totalBatches,
         ]);
+    }
+
+    /**
+     * Detect the actual root directory of the update
+     * Skips wrapper folders like "HelpNest-update-v1.1.0/update/"
+     */
+    protected function detectUpdateRoot(string $path): string
+    {
+        $currentPath = $path;
+        
+        // Safety limit to prevent infinite loops
+        for ($i = 0; $i < 5; $i++) {
+            $files = File::files($currentPath);
+            $directories = File::directories($currentPath);
+
+            // If there are files, this is likely the root (or contains files we need)
+            if (count($files) > 0) {
+                return $currentPath;
+            }
+
+            // If there are multiple directories, this is likely the root
+            if (count($directories) > 1) {
+                return $currentPath;
+            }
+
+            // If there is exactly one directory and no files, drill down
+            if (count($directories) === 1) {
+                $currentPath = $directories[0];
+                continue;
+            }
+
+            // Empty directory? Return original path
+            return $path;
+        }
+
+        return $currentPath;
     }
 
     /**
@@ -237,8 +365,10 @@ class BatchReplacer
                 continue;
             }
 
-            if (str_contains($relativePath, "/{$skipDir}/") ||
-                str_starts_with($relativePath, "{$skipDir}/")) {
+            if (
+                str_contains($relativePath, "/{$skipDir}/") ||
+                str_starts_with($relativePath, "{$skipDir}/")
+            ) {
                 return true;
             }
         }
@@ -263,9 +393,38 @@ class BatchReplacer
         return false;
     }
 
-    /**
-     * Get destination path for a file
-     */
+    protected function handleCustomFile(string $extractedPath, string $relativePath): ?string
+    {
+        $changeLogsPath = $extractedPath . '/change-logs.json';
+
+        if (!File::exists($changeLogsPath)) {
+            Log::warning("change-logs.json not found, skipping custom file: {$relativePath}");
+            return null;
+        }
+
+        try {
+            $changeLogs = json_decode(File::get($changeLogsPath), true);
+            $customFiles = $changeLogs['custom'] ?? [];
+
+            $filename = basename($relativePath);
+
+            foreach ($customFiles as $customFile) {
+                if (($customFile['filename'] ?? '') === $filename) {
+                    $destinationPath = $customFile['path'] ?? null;
+                    if ($destinationPath) {
+                        return storage_path('../../' . $destinationPath . '/' . $filename);
+                    }
+                }
+            }
+
+            Log::warning("No mapping found in change-logs.json for: {$relativePath}");
+            return null;
+        } catch (\Exception $e) {
+            Log::error("Failed to parse change-logs.json", ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     protected function getDestinationPath(string $relativePath): ?string
     {
         // Handle public/ directory - goes to Laravel public folder
@@ -280,14 +439,14 @@ class BatchReplacer
 
         // Handle custom/ folder - needs special handling based on change-logs.json
         if (str_starts_with($relativePath, 'custom/')) {
-            // For now, skip custom folder files
-            // They require change-logs.json mapping
-            return null;
+            $paths = $this->statusManager->getPaths();
+            $realRoot = $this->detectUpdateRoot($paths['extracted']);
+            return $this->handleCustomFile($realRoot, $relativePath);
         }
 
-        // Handle assets/ directory - goes to root assets folder
+        // Handle assets/ directory - goes to root assets folder (one level up from core)
         if (str_starts_with($relativePath, 'assets/')) {
-            return base_path($relativePath);
+            return base_path('../' . $relativePath);
         }
 
         // Handle Modules/ directory
@@ -300,7 +459,11 @@ class BatchReplacer
             return base_path($relativePath);
         }
 
-        // Default: relative to base path
+        if (str_starts_with($relativePath, 'vendor/')) {
+            $destPath = base_path($relativePath);
+            return $destPath;
+        }
+
         return base_path($relativePath);
     }
 
@@ -330,9 +493,13 @@ class BatchReplacer
     protected function enableMaintenanceMode(): void
     {
         try {
-            Artisan::call('down');
+            // Enable maintenance mode with secret to allow update routes
+            Artisan::call('down', [
+                '--secret' => 'xg-update-in-progress',
+                '--render' => 'errors::503',
+            ]);
             $this->statusManager->update(['maintenance_mode' => true]);
-            $this->statusManager->addLog('Maintenance mode enabled');
+            $this->statusManager->addLog('Maintenance mode enabled with update bypass');
         } catch (\Exception $e) {
             Log::warning("Failed to enable maintenance mode", ['error' => $e->getMessage()]);
         }
@@ -390,12 +557,111 @@ class BatchReplacer
         return $this->fileList;
     }
 
-    /**
-     * Reset state
-     */
+    public function getComposerReport(): array
+    {
+        return $this->composerDiff->getDetailedReport();
+    }
+
     public function reset(): void
     {
         $this->fileList = [];
         $this->fileListBuilt = false;
+        $this->composerAnalyzed = false;
+        $this->shouldReplaceCallback = null;
+    }
+
+    public function setShouldReplaceCallback(callable $callback): void
+    {
+        $this->shouldReplaceCallback = $callback;
+    }
+
+    public function clearOpcache(): bool
+    {
+        $cleared = false;
+
+        if (function_exists('opcache_reset')) {
+            $cleared = @opcache_reset();
+        }
+
+        if (function_exists('opcache_invalidate')) {
+        }
+
+        return $cleared;
+    }
+
+    public function updateSelfPackage(): array
+    {
+        $paths = $this->statusManager->getPaths();
+        $realRoot = $this->detectUpdateRoot($paths['extracted']);
+
+        $replaced = 0;
+        $skipped = 0;
+        $errors = [];
+
+        try {
+            $xgPackagePath = $realRoot . '/vendor/xgenious/xgapiclient';
+
+            if (!File::isDirectory($xgPackagePath)) {
+                return [
+                    'success' => true,
+                    'message' => 'No XgApiClient package updates found',
+                    'replaced' => 0,
+                    'skipped' => 0,
+                ];
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($xgPackagePath, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isDir()) {
+                    continue;
+                }
+
+                $relativePath = str_replace($realRoot . '/', '', $file->getPathname());
+                $relativePath = str_replace('\\', '/', $relativePath);
+
+                $destPath = base_path($relativePath);
+
+                try {
+                    $destDir = dirname($destPath);
+                    if (!File::isDirectory($destDir)) {
+                        File::makeDirectory($destDir, 0755, true);
+                    }
+
+                    if (Config::get('xgapiclient.update.enable_backup', false) && File::exists($destPath)) {
+                        $this->backupFile($destPath, $relativePath);
+                    }
+
+                    File::copy($file->getPathname(), $destPath);
+                    $replaced++;
+                } catch (\Exception $e) {
+                    $errors[] = $relativePath;
+                    Log::warning("Failed to update XgApiClient file: {$relativePath}", ['error' => $e->getMessage()]);
+                }
+            }
+
+            $this->statusManager->addLog("Updated XgApiClient package: {$replaced} files replaced");
+
+            return [
+                'success' => true,
+                'message' => "XgApiClient package updated successfully",
+                'replaced' => $replaced,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to update XgApiClient package', ['error' => $e->getMessage()]);
+
+            return [
+                'success' => false,
+                'message' => 'Failed to update XgApiClient package: ' . $e->getMessage(),
+                'replaced' => $replaced,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ];
+        }
     }
 }

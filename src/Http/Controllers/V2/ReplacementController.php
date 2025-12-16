@@ -7,16 +7,19 @@ use Illuminate\Http\Request;
 use Xgenious\XgApiClient\Http\Controllers\Controller;
 use Xgenious\XgApiClient\Services\V2\BatchReplacer;
 use Xgenious\XgApiClient\Services\V2\UpdateStatusManager;
+use Xgenious\XgApiClient\Services\V2\ComposerDiffHandler;
 
 class ReplacementController extends Controller
 {
     protected UpdateStatusManager $statusManager;
     protected BatchReplacer $replacer;
+    protected ComposerDiffHandler $composerDiffHandler;
 
     public function __construct()
     {
         $this->statusManager = new UpdateStatusManager();
         $this->replacer = new BatchReplacer($this->statusManager);
+        $this->composerDiffHandler = new ComposerDiffHandler($this->statusManager);
     }
 
     /**
@@ -44,6 +47,19 @@ class ReplacementController extends Controller
             ], 400);
         }
 
+        // Check if vendor replacement is enabled
+        $smartVendor = config('xgapiclient.update.smart_vendor_replacement', true);
+
+        if ($smartVendor) {
+            $extractedPath = $this->statusManager->getPaths()['extracted'];
+            $this->composerDiffHandler->analyze($extractedPath);
+
+            // Set the callback for checking if a file should be replaced
+            $this->replacer->setShouldReplaceCallback(function ($relativePath) {
+                return $this->composerDiffHandler->shouldReplaceVendorPath($relativePath);
+            });
+        }
+
         // Replace batch
         $result = $this->replacer->replaceBatch($batchNumber, $batchSize);
 
@@ -52,6 +68,12 @@ class ReplacementController extends Controller
             $this->statusManager->updatePhase('replacement', ['status' => 'completed']);
             $this->statusManager->update(['phase' => 'migration']);
             $this->statusManager->addLog('File replacement completed. Ready for database migration.');
+
+            // Clear opcache to ensure new files are used
+            $opcacheCleared = $this->replacer->clearOpcache();
+            if ($opcacheCleared) {
+                $this->statusManager->addLog('OPcache cleared successfully');
+            }
 
             // Disable maintenance mode
             $this->replacer->disableMaintenanceMode();
@@ -214,5 +236,129 @@ class ReplacementController extends Controller
             'success' => true,
             'maintenance_mode' => $enable,
         ]);
+    }
+
+    /**
+     * Get composer analysis report
+     */
+    public function composerAnalysis(): JsonResponse
+    {
+        $status = $this->statusManager->getStatus();
+
+        if (!$status) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active update',
+                'report' => $this->getEmptyReport('no_update'),
+            ], 400);
+        }
+
+        // Check if composer analysis was already done and stored in status
+        if (isset($status['composer_analysis'])) {
+            return response()->json([
+                'success' => true,
+                'report' => $status['composer_analysis'],
+                'cached' => true,
+            ]);
+        }
+
+        try {
+            // Perform analysis on-demand if not cached
+            $extractedPath = $this->statusManager->getPaths()['extracted'];
+
+            // Check if extracted path exists
+            if (!is_dir($extractedPath)) {
+                return response()->json([
+                    'success' => true,
+                    'report' => $this->getEmptyReport('not_ready'),
+                    'cached' => false,
+                ]);
+            }
+
+            $report = $this->replacer->analyzeComposerChanges($extractedPath);
+
+            return response()->json([
+                'success' => true,
+                'report' => $report,
+                'cached' => false,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Composer analysis failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'report' => $this->getEmptyReport('analysis_failed', $e->getMessage()),
+                'cached' => false,
+            ]);
+        }
+    }
+
+    /**
+     * Cleanup obsolete vendor packages
+     */
+    public function cleanupVendor(): JsonResponse
+    {
+        $smartVendor = config('xgapiclient.update.smart_vendor_replacement', true);
+
+        if (!$smartVendor) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Smart vendor replacement disabled',
+                'removed' => 0,
+            ]);
+        }
+
+        $status = $this->statusManager->getStatus();
+        if (!$status) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active update',
+            ], 400);
+        }
+
+        // Ensure analysis is done
+        $extractedPath = $this->statusManager->getPaths()['extracted'];
+        $this->composerDiffHandler->analyze($extractedPath);
+
+        $removed = $this->composerDiffHandler->removeObsoletePackages();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Removed {$removed} obsolete vendor packages",
+            'removed' => $removed,
+        ]);
+    }
+
+    /**
+     * Clear OPcache manually
+     */
+    public function clearOpcache(): JsonResponse
+    {
+        $cleared = $this->replacer->clearOpcache();
+
+        return response()->json([
+            'success' => true,
+            'cleared' => $cleared,
+            'message' => $cleared ? 'OPcache cleared successfully' : 'OPcache not available or failed to clear',
+        ]);
+    }
+
+    /**
+     * Get empty report helper
+     */
+    private function getEmptyReport(string $reason, ?string $error = null): array
+    {
+        return [
+            'has_changes' => false,
+            'requires_composer_update' => false,
+            'reason' => $reason,
+            'error' => $error,
+            'affected_packages' => [],
+            'removed_packages' => [],
+            'added_packages' => [],
+        ];
     }
 }

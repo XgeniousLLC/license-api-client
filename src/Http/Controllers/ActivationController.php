@@ -29,7 +29,8 @@ class ActivationController extends Controller
         // todo:: url should be look like this activate-license/{key}/{client}
         $has = hash_hmac('sha224',$data['product_activation_key'].$data['client'].$siteUrl,'xgenious');
 
-        $response = Http::post(Config::get('xgapiclient.base_api_url')."/activate-license/{$data['product_activation_key']}/{$data['client']}?site={$siteUrl}&agent={$agent}&has={$has}");
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
+        $response = Http::post("{$baseUrl}/activate-license/{$data['product_activation_key']}/{$data['client']}?site={$siteUrl}&agent={$agent}&has={$has}");
 
         $result = $response->json();
 

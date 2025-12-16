@@ -25,11 +25,19 @@ class ChunkDownloader
     {
         $this->ensureChunksDirExists();
 
-        $baseUrl = rtrim(Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com'), '/');
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
         $siteUrl = url('/');
         $hash = hash_hmac('sha224', $licenseKey . $siteUrl, 'xgenious');
 
-        $url = "{$baseUrl}/api/v2/download-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
+        // Get target version from status
+        $status = $this->statusManager->getStatus();
+        $targetVersion = $status['version']['target'] ?? null;
+
+        if (!$targetVersion) {
+            throw new \Exception("Cannot download chunk: target version not found in update status. Please cancel and restart the update.");
+        }
+
+        $url = "{$baseUrl}/v2/download-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
 
         $this->statusManager->addLog("Downloading chunk {$chunkIndex}...");
         $this->statusManager->updatePhase('download', ['current_chunk' => $chunkIndex]);
@@ -37,19 +45,40 @@ class ChunkDownloader
         try {
             $chunkPath = $this->getChunkPath($chunkIndex);
 
+            // Build query parameters
+            $queryParams = [
+                'site' => $siteUrl,
+                'has' => $hash,
+            ];
+            
+            // Add version if available
+            if ($targetVersion) {
+                $queryParams['version'] = $targetVersion;
+            }
+
             $response = Http::timeout(300) // 5 minute timeout per chunk
                 ->withHeaders([
                     'X-Site-Url' => $siteUrl,
                     'Accept' => 'application/octet-stream',
                 ])
                 ->withOptions(['sink' => $chunkPath])
-                ->get($url, [
-                    'site' => $siteUrl,
-                    'has' => $hash,
-                ]);
+                ->get($url, $queryParams);
 
             if (!$response->successful()) {
-                throw new \Exception("Failed to download chunk {$chunkIndex}: HTTP " . $response->status());
+                $errorBody = $response->body();
+                $errorJson = $response->json();
+                
+                Log::error("Chunk download HTTP error", [
+                    'chunk' => $chunkIndex,
+                    'status' => $response->status(),
+                    'url' => $url,
+                    'response_body' => $errorBody,
+                    'response_json' => $errorJson,
+                    'headers' => $response->headers(),
+                ]);
+                
+                $errorMessage = $errorJson['message'] ?? $errorJson['error'] ?? $errorBody;
+                throw new \Exception("Failed to download chunk {$chunkIndex}: HTTP " . $response->status() . " - " . $errorMessage);
             }
 
             // Get chunk info from headers
@@ -119,11 +148,11 @@ class ChunkDownloader
      */
     public function verifyWithServer(int $chunkIndex, string $licenseKey, string $productUid): array
     {
-        $baseUrl = rtrim(Config::get('xgapiclient.base_api_url', 'https://license.xgenious.com'), '/');
+        $baseUrl = xgNormalizeBaseApiUrl(Config::get('xgapiclient.base_api_url'));
         $siteUrl = url('/');
         $hash = hash_hmac('sha224', $licenseKey . $siteUrl, 'xgenious');
 
-        $url = "{$baseUrl}/api/v2/verify-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
+        $url = "{$baseUrl}/v2/verify-chunk/{$licenseKey}/{$productUid}/{$chunkIndex}";
 
         try {
             $response = Http::timeout(30)
