@@ -163,7 +163,6 @@ class BatchReplacer
                     // Ensure destination directory exists
                     $destDir = dirname($destPath);
                     if (!File::isDirectory($destDir)) {
-                        Log::debug("Creating destination directory: {$destDir}");
                         File::makeDirectory($destDir, 0755, true);
                     }
 
@@ -483,7 +482,6 @@ class BatchReplacer
             }
 
             File::copy($originalPath, $backupPath);
-            Log::info("Backed up: {$relativePath}");
         } catch (\Exception $e) {
             Log::warning("Failed to backup file: {$relativePath}", ['error' => $e->getMessage()]);
         }
