@@ -37,7 +37,14 @@ class ChunkController extends Controller
         }
 
         $licenseKey = get_static_option('site_license_key');
-        $productUid = config('xgapiclient.has_token');
+                
+        // Check if bundle pack is enabled in installer config
+        $isBundlePack = config('installer.bundle_pack', false);
+        
+        // Use bundle pack key if enabled, otherwise use product UID
+        $productUid = $isBundlePack 
+            ? config('installer.bundle_pack_key') 
+            : config('xgapiclient.has_token');
 
         // Download the chunk
         $result = $this->downloader->download($chunkIndex, $licenseKey, $productUid);
@@ -125,7 +132,14 @@ class ChunkController extends Controller
     public function verify(int $chunkIndex): JsonResponse
     {
         $licenseKey = get_static_option('site_license_key');
-        $productUid = config('xgapiclient.has_token');
+                
+        // Check if bundle pack is enabled in installer config
+        $isBundlePack = config('installer.bundle_pack', false);
+        
+        // Use bundle pack key if enabled, otherwise use product UID
+        $productUid = $isBundlePack 
+            ? config('installer.bundle_pack_key') 
+            : config('xgapiclient.has_token');
 
         $result = $this->downloader->verifyWithServer($chunkIndex, $licenseKey, $productUid);
 
