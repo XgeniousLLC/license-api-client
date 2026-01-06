@@ -26,7 +26,14 @@ class UpdateController extends Controller
     {
         $licenseKey = get_static_option('site_license_key');
         $currentVersion = get_static_option('site_script_version');
-        $productUid = config('xgapiclient.has_token');
+        
+        // Check if bundle pack is enabled in installer config
+        $isBundlePack = config('installer.bundle_pack', false);
+        
+        // Use bundle pack key if enabled, otherwise use product UID
+        $productUid = $isBundlePack 
+            ? config('installer.bundle_pack_key') 
+            : config('xgapiclient.has_token');
 
         // Check for existing update status (for resume capability)
         $existingStatus = $this->statusManager->getStatus();
@@ -48,7 +55,14 @@ class UpdateController extends Controller
     {
         $licenseKey = get_static_option('site_license_key');
         $currentVersion = get_static_option('site_script_version');
-        $productUid = config('xgapiclient.has_token');
+        
+        // Check if bundle pack is enabled in installer config
+        $isBundlePack = config('installer.bundle_pack', false);
+        
+        // Use bundle pack key if enabled, otherwise use product UID
+        $productUid = $isBundlePack 
+            ? config('installer.bundle_pack_key') 
+            : config('xgapiclient.has_token');
 
         if (!$licenseKey || !$productUid) {
             return response()->json([
@@ -70,7 +84,14 @@ class UpdateController extends Controller
     {
         $targetVersion = $request->input('version');
         $licenseKey = get_static_option('site_license_key');
-        $productUid = config('xgapiclient.has_token');
+
+        // Check if bundle pack is enabled in installer config
+        $isBundlePack = config('installer.bundle_pack', false);
+        
+        // Use bundle pack key if enabled, otherwise use product UID
+        $productUid = $isBundlePack 
+            ? config('installer.bundle_pack_key') 
+            : config('xgapiclient.has_token');
 
         if (!$targetVersion) {
             return response()->json([
