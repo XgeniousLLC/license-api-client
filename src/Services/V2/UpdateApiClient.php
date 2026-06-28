@@ -62,9 +62,10 @@ class UpdateApiClient
                 );
 
             if (!$response->successful()) {
+                $body = $response->json();
                 return [
                     'success' => false,
-                    'message' => 'Server error: HTTP ' . $response->status(),
+                    'message' => $body['message'] ?? 'Server error: HTTP ' . $response->status(),
                 ];
             }
 
