@@ -745,6 +745,17 @@
         // Handle errors
         function handleError(error) {
             alert('Update error: ' + error.message);
+
+            const logEl = document.getElementById('logConsole');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry error';
+            entry.innerHTML = `Couldn't complete the update automatically. You can update manually instead: ` +
+                `download the update file from <a href="https://xgenious.com/my-account/downloads" target="_blank" rel="noopener noreferrer">My Account &rarr; Downloads</a> ` +
+                `(click "Generate Update File URL"), then follow the ` +
+                `<a href="https://docs.xgenious.com/docs/common-documentation/how-to-download-manual-update-file/" target="_blank" rel="noopener noreferrer">manual update guide</a>. ` +
+                `Or open a <a href="https://xgenious.com/my-account/support" target="_blank" rel="noopener noreferrer">support ticket</a> for help.`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
         }
 
         // Handle completion
