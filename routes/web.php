@@ -23,6 +23,7 @@ Route::prefix('update/v2')->name('xg.update.v2.')->group(function () {
     // Main update page and status
     Route::get('/', [UpdateController::class, 'index'])->name('index');
     Route::get('/check', [UpdateController::class, 'checkUpdate'])->name('check');
+    Route::post('/system-check', [UpdateController::class, 'systemCheck'])->name('system-check');
     Route::post('/initiate', [UpdateController::class, 'initiate'])->name('initiate');
     Route::get('/status', [UpdateController::class, 'status'])->name('status');
     Route::post('/cancel', [UpdateController::class, 'cancel'])->name('cancel');

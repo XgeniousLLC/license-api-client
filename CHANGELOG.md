@@ -2,6 +2,11 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.5.0 - 2026-September-07
+
+- Added: `SystemReadinessChecker` service + `POST /update/v2/system-check` endpoint - verifies PHP version, required extensions (zip, curl, mbstring, openssl, fileinfo, json), memory_limit, max_execution_time, free disk space (sized against the actual update package size), and directory write permissions before a chunked update proceeds
+- The check now runs automatically right after `/initiate` succeeds, before any chunk is downloaded - a blocking failure (e.g. missing extension, insufficient disk space) aborts the update immediately with the specific problem and suggested fix, instead of failing partway through download/extraction with no clear cause
+
 ## 6.4.2 - 2026-September-06
 
 - Fixed: `BatchExtractor::extractBatch()` now catches `\Throwable` instead of only `\Exception`, so a `TypeError`/`Error` during extraction returns a clean JSON error instead of crashing to a raw 500

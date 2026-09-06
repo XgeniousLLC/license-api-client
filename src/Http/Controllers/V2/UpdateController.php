@@ -5,6 +5,7 @@ namespace Xgenious\XgApiClient\Http\Controllers\V2;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Xgenious\XgApiClient\Http\Controllers\Controller;
+use Xgenious\XgApiClient\Services\V2\SystemReadinessChecker;
 use Xgenious\XgApiClient\Services\V2\UpdateApiClient;
 use Xgenious\XgApiClient\Services\V2\UpdateStatusManager;
 
@@ -137,6 +138,32 @@ class UpdateController extends Controller
             'status' => $result,
         ]);
 
+    }
+
+    /**
+     * Check whether this server environment is actually ready to complete an
+     * update of the given size/requirements - PHP version, extensions,
+     * memory_limit, max_execution_time, free disk space, and directory
+     * permissions. Called client-side right after /initiate, before any
+     * chunk is downloaded, so problems surface before time/bandwidth is spent.
+     */
+    public function systemCheck(Request $request): JsonResponse
+    {
+        $totalSize = (int) $request->input('total_size', 0);
+        $phpVersionRequired = $request->input('php_version_required');
+        $extensionsRaw = $request->input('extensions_required');
+
+        $extensionsRequired = [];
+        if (is_array($extensionsRaw)) {
+            $extensionsRequired = $extensionsRaw;
+        } elseif (is_string($extensionsRaw) && $extensionsRaw !== '') {
+            $decoded = json_decode($extensionsRaw, true);
+            $extensionsRequired = is_array($decoded) ? $decoded : array_filter(array_map('trim', explode(',', $extensionsRaw)));
+        }
+
+        $result = (new SystemReadinessChecker())->check($totalSize, $phpVersionRequired, $extensionsRequired);
+
+        return response()->json(array_merge(['success' => true], $result));
     }
 
     /**

@@ -88,6 +88,7 @@ class UpdateManager {
 
             if (result.success && result.data?.update_available) {
                 this.log(`Update available: v${result.data.latest_version}`);
+                this.lastCheckInfo = result.data;
                 return result.data;
             } else if (result.success) {
                 this.log('No updates available');
@@ -207,6 +208,10 @@ class UpdateManager {
 
         this.log(`Update initialized. ${initResult.status.download.total_chunks} chunks to download.`);
 
+        // Verify this server can actually complete an update of this size
+        // before spending any time/bandwidth on it.
+        await this.runSystemCheck(initResult.status.download.total_size);
+
         // Continue with download phase
         await this.runDownloadPhase();
         await this.runMergePhase();
@@ -295,6 +300,50 @@ class UpdateManager {
     setPhase(phase) {
         this.currentPhase = phase;
         this.onPhaseChange(phase);
+    }
+
+    /**
+     * Verify this server environment (PHP version/extensions, memory,
+     * execution time limit, disk space, permissions) can actually complete
+     * an update of this size. Throws on a blocking failure; logs and
+     * continues on non-blocking warnings.
+     */
+    async runSystemCheck(totalSize = 0) {
+        this.log('Checking server readiness for this update...');
+
+        const info = this.lastCheckInfo || {};
+
+        let result;
+        try {
+            result = await this.request('/system-check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    total_size: totalSize,
+                    php_version_required: info.php_version_required || null,
+                    extensions_required: info.extensions_required || null,
+                }),
+            });
+        } catch (error) {
+            // Don't block the update if the check itself fails to run -
+            // just warn and proceed, the update may still succeed.
+            this.log(`Could not run the readiness check (${error.message}) - continuing anyway.`, 'warning');
+            return;
+        }
+
+        const checks = result.checks || [];
+        const failed = checks.filter((c) => c.status === 'fail');
+        const warned = checks.filter((c) => c.status === 'warning');
+
+        for (const check of warned) {
+            this.log(`Warning: ${check.name} - ${check.message}${check.suggestion ? ` (${check.suggestion})` : ''}`, 'warning');
+        }
+
+        if (failed.length > 0) {
+            const details = failed.map((c) => `${c.name}: ${c.message}${c.suggestion ? ` — ${c.suggestion}` : ''}`).join(' | ');
+            throw new Error(`Server is not ready for this update. ${details}`);
+        }
+
+        this.log('Server readiness check passed.');
     }
 
     /**
