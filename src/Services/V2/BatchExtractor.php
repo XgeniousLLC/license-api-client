@@ -125,10 +125,28 @@ class BatchExtractor
                 'errors' => $errors,
             ];
 
-        } catch (\Exception $e) {
-            Log::error("Extraction failed", ['batch' => $batchNumber, 'error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            // Catch \Throwable (not just \Exception) so a TypeError/Error -
+            // e.g. from a PHP warning promoted by Laravel's error handler,
+            // or a genuine type mismatch - still returns a clean JSON error
+            // instead of crashing to a raw 500. Full file/line/trace is
+            // captured here (not in the returned `error` message, which
+            // stays user-facing) so a report like "A non-numeric value
+            // encountered" is actually debuggable from the log/status file
+            // instead of needing to be reproduced blind.
+            Log::error("Extraction failed", [
+                'batch' => $batchNumber,
+                'error' => $e->getMessage(),
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             $this->statusManager->recordError('extraction_failed', $e->getMessage(), [
                 'batch' => $batchNumber,
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return [

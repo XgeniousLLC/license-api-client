@@ -2,6 +2,11 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.4.2 - 2026-September-06
+
+- Fixed: `BatchExtractor::extractBatch()` now catches `\Throwable` instead of only `\Exception`, so a `TypeError`/`Error` during extraction returns a clean JSON error instead of crashing to a raw 500
+- Added: extraction failures now log the exception class, file, line, and full trace (previously only the message), so reports like "A non-numeric value encountered" are actually debuggable from `storage/logs/laravel.log` or the update status file instead of needing to be reproduced blind
+
 ## 6.4.1 - 2026-September-06
 
 - Fixed: `UpdateApiClient::checkForUpdate()` now safely handles a non-JSON/non-array error body instead of only trusting `message` on an array
