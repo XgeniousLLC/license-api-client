@@ -2,6 +2,12 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.6.1 - 2026-September-07
+
+- Fixed: `composer test` was non-functional - `phpunit.xml` had no `<testsuites>` block, and the one existing test's data provider wasn't `static`, which PHPUnit 11 requires
+- Added: `tests/TestCase.php` (Orchestra Testbench, boots the package's service provider) and `tests/Pest.php` so `tests/Unit/*` runs as Pest tests against a real Laravel app
+- Added: `tests/Unit/UpdateStatusManagerTest.php` and `tests/Unit/BatchReplacerTest.php` - cover the 6.6.0 maintenance-mode fix directly (status init/resume/error tracking, and that `reset()` brings a maintenance-mode-stuck site back up, but leaves it alone when it wasn't down)
+
 ## 6.6.0 - 2026-September-07
 
 - Fixed: a failure during the Replace phase of a V2 update could leave the live site stuck behind a maintenance page indefinitely, with no automatic recovery - any failure, cancel, or finalize now restores public access automatically (`BatchReplacer`, `UpdateStatusManager::reset()`)

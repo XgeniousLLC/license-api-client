@@ -1,6 +1,7 @@
 <?php
 
 use Xgenious\XgApiClient\XgApiClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Http\Request;
@@ -18,15 +19,13 @@ class XgApiClientTest extends TestCase {
     }
     
 
-    /**
-     * @dataProvider extensionProvider
-     */
+    #[DataProvider('extensionProvider')]
     public function testExtensionCheck($extensionName, $expectedResult) {
         $result = $this->xgApiClient->extensionCheck($extensionName);
         $this->assertSame($expectedResult, $result);
     }
 
-    public function extensionProvider() {
+    public static function extensionProvider() {
         return [
             ["json", true],
             ["nonexistentExtension", false],
