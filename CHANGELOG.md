@@ -2,6 +2,11 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.5.3 - 2026-September-07
+
+- Changed: `base_api_url` is no longer read from `XG_LICENSE_API_URL` in `.env` - there is only ever one xgenious license server, so it's now a fixed value (`https://license.xgenious.com`) in `config/xgapiclient.php`, same rationale as the update-tuning knobs fixed in 6.5.2. `XG_PRODUCT_TOKEN` remains the only supported `.env` override
+- Docs: README and V2 guides updated - `.env` setup now shows only `XG_PRODUCT_TOKEN`; the README's config file example was also brought back in sync with 6.5.2's changes (it still showed the old `env()`-wrapped values)
+
 ## 6.5.2 - 2026-September-07
 
 - Fixed: extraction/replacement batch size, chunk size, download timeout, retry count, backup, and smart-vendor-replacement are no longer read from `.env` - they're fixed internal defaults in `config/xgapiclient.php` now. A malformed override (e.g. `XG_UPDATE_EXTRACTION_BATCH` pasted as `"100       # Files per extraction batch"`, which some hosting-panel env editors produce by storing everything after `=` literally, comment included) was hitting PHP's "A non-numeric value encountered" warning in batch-count arithmetic, promoted by Laravel's error handler into a fatal `ErrorException` on the very first extraction batch. `XG_LICENSE_API_URL` and `XG_PRODUCT_TOKEN` are unaffected and remain the only supported `.env` overrides

@@ -105,13 +105,13 @@ chmod 755 storage/app/xg-update
 ## Configuration
 
 ```env
-XG_LICENSE_API_URL=https://license.xgenious.com
 XG_PRODUCT_TOKEN=your-unique-product-token
 ```
 
-Chunk size, batch sizes, retry count, and backup behavior are fixed internal
-defaults as of 6.5.2 - they're no longer `.env`-configurable, so a malformed
-override on the hosting side can't break the update pipeline.
+That's the only required variable. The license server URL, chunk size, batch
+sizes, retry count, and backup behavior are fixed internal defaults as of
+6.5.3 - no longer `.env`-configurable, so a malformed override on the hosting
+side can't break the update pipeline or misdirect licensing.
 
 ## API Endpoints
 

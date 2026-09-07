@@ -58,10 +58,10 @@ return [
     | Base API URL
     |--------------------------------------------------------------------------
     |
-    | The base URL for the license server API.
+    | The license server every product talks to. Fixed - not .env-driven.
     |
     */
-    "base_api_url" => env('XG_LICENSE_API_URL', "https://license.xgenious.com"),
+    "base_api_url" => "https://license.xgenious.com",
 
     /*
     |--------------------------------------------------------------------------
@@ -78,18 +78,18 @@ return [
     | V2 Update System Configuration
     |--------------------------------------------------------------------------
     |
-    | Settings for the chunked update system (V2).
-    | Recommended for production use to handle large updates reliably.
+    | Internal tuning for the chunked update system (V2) - fixed defaults,
+    | not .env-driven.
     |
     */
     "update" => [
-        "chunk_size" => env('XG_UPDATE_CHUNK_SIZE', 10 * 1024 * 1024), // 10MB
-        "download_timeout" => env('XG_UPDATE_DOWNLOAD_TIMEOUT', 300),
-        "extraction_batch_size" => env('XG_UPDATE_EXTRACTION_BATCH', 100),
-        "replacement_batch_size" => env('XG_UPDATE_REPLACEMENT_BATCH', 50),
-        "enable_backup" => env('XG_UPDATE_ENABLE_BACKUP', true),
-        "smart_vendor_replacement" => env('XG_UPDATE_SMART_VENDOR', true),
-        "max_retries" => env('XG_UPDATE_MAX_RETRIES', 3),
+        "chunk_size" => 10 * 1024 * 1024, // 10MB
+        "download_timeout" => 300,
+        "extraction_batch_size" => 100,
+        "replacement_batch_size" => 50,
+        "enable_backup" => true,
+        "smart_vendor_replacement" => true,
+        "max_retries" => 3,
         "status_file" => storage_path('app/xg-update/.update-status.json'),
         "temp_directory" => storage_path('app/xg-update'),
     ],
@@ -99,18 +99,16 @@ return [
 
 #### Environment Variables
 
-You can customize the behavior by adding these variables to your `.env` file:
+Only one variable is needed in your `.env` file:
 
 ```env
-# License Server Configuration
-XG_LICENSE_API_URL=https://license.xgenious.com
 XG_PRODUCT_TOKEN=your-unique-product-token
 ```
 
-Chunk size, batch sizes, retry count, backup, and smart-vendor-replacement are no
-longer `.env`-configurable as of 6.5.2 - they're fixed internal defaults tuned by
-the package itself, so a mistyped or malformed override on the hosting side can no
-longer break the update pipeline.
+Everything else (which license server to talk to, chunk size, batch sizes,
+retry count, backup, smart-vendor-replacement) is a fixed internal default as
+of 6.5.3 - not `.env`-configurable, so a mistyped or malformed override on the
+hosting side can no longer break the update pipeline or misdirect licensing.
 
 ## Usage
 

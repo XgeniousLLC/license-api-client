@@ -6,10 +6,13 @@ return [
     | Base API URL
     |--------------------------------------------------------------------------
     |
-    | The base URL for the license server API.
+    | The license server every product talks to. Fixed - not .env-driven -
+    | since there is only ever one xgenious license server, and leaving it
+    | overridable invites the same class of bug as the update-tuning knobs
+    | above (a bad/stale .env value silently pointing licensing at nowhere).
     |
     */
-    "base_api_url" => env('XG_LICENSE_API_URL', "https://license.xgenious.com"),
+    "base_api_url" => "https://license.xgenious.com",
 
     /*
     |--------------------------------------------------------------------------
