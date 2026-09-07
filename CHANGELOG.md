@@ -2,6 +2,12 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.5.2 - 2026-September-07
+
+- Fixed: extraction/replacement batch size, chunk size, download timeout, retry count, backup, and smart-vendor-replacement are no longer read from `.env` - they're fixed internal defaults in `config/xgapiclient.php` now. A malformed override (e.g. `XG_UPDATE_EXTRACTION_BATCH` pasted as `"100       # Files per extraction batch"`, which some hosting-panel env editors produce by storing everything after `=` literally, comment included) was hitting PHP's "A non-numeric value encountered" warning in batch-count arithmetic, promoted by Laravel's error handler into a fatal `ErrorException` on the very first extraction batch. `XG_LICENSE_API_URL` and `XG_PRODUCT_TOKEN` are unaffected and remain the only supported `.env` overrides
+- Hardened: `BatchExtractor` and `BatchReplacer` also cast the batch size to `int` via a shared `resolveBatchSize()` guard as defense in depth, in case a future config value isn't a clean positive integer
+- Docs: README and V2 guides no longer document the removed `.env` variables; existing sites with them still set can leave them in place (now silently ignored) or remove them
+
 ## 6.5.1 - 2026-September-07
 
 - Changed: the `Memory Limit` and `Execution Time Limit` readiness checks now block the update (status `fail`) instead of only warning - an admin is required to raise `memory_limit`/`max_execution_time` before the update proceeds, rather than being allowed to continue on a setting likely to fail partway through

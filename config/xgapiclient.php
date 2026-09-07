@@ -26,84 +26,41 @@ return [
     | V2 Update System Configuration
     |--------------------------------------------------------------------------
     |
-    | Settings for the chunked update system (V2).
+    | Internal tuning for the chunked update system (V2). These are fixed
+    | defaults, not meant to be overridden per-site via .env: they used to
+    | read from env() with a numeric fallback, but a numeric-looking env
+    | value pasted with a trailing comment (e.g. from a hosting panel's env
+    | editor that stores everything after "=" literally, including "#
+    | comment" text) silently became a non-numeric string and crashed
+    | extraction/replacement with "A non-numeric value encountered". These
+    | values are safe and rarely need changing, so the package now owns
+    | them directly instead of trusting arbitrary .env content.
     |
     */
     "update" => [
-        /*
-        |--------------------------------------------------------------------------
-        | Chunk Size (bytes)
-        |--------------------------------------------------------------------------
-        |
-        | Expected chunk size from the server (10MB default).
-        | This should match the server's chunk size setting.
-        |
-        */
-        "chunk_size" => env('XG_UPDATE_CHUNK_SIZE', 10 * 1024 * 1024),
+        // Expected chunk size from the server (10MB). Should match the
+        // server's chunk size setting.
+        "chunk_size" => 10 * 1024 * 1024,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Download Timeout (seconds)
-        |--------------------------------------------------------------------------
-        |
-        | Maximum time to wait for each chunk download.
-        |
-        */
-        "download_timeout" => env('XG_UPDATE_DOWNLOAD_TIMEOUT', 300),
+        // Maximum time (seconds) to wait for each chunk download.
+        "download_timeout" => 300,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Extraction Batch Size
-        |--------------------------------------------------------------------------
-        |
-        | Number of files to extract from ZIP in each batch.
-        | Lower values use less memory but take more requests.
-        |
-        */
-        "extraction_batch_size" => env('XG_UPDATE_EXTRACTION_BATCH', 100),
+        // Files extracted from the ZIP per batch. Lower uses less memory
+        // but takes more requests.
+        "extraction_batch_size" => 100,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Replacement Batch Size
-        |--------------------------------------------------------------------------
-        |
-        | Number of files to replace in each batch.
-        | Lower values are safer but take more requests.
-        |
-        */
-        "replacement_batch_size" => env('XG_UPDATE_REPLACEMENT_BATCH', 50),
+        // Files replaced per batch. Lower is safer but takes more requests.
+        "replacement_batch_size" => 50,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Enable File Backup
-        |--------------------------------------------------------------------------
-        |
-        | Whether to backup original files before replacing.
-        | Recommended for production but increases update time and storage.
-        |
-        */
-        "enable_backup" => env('XG_UPDATE_ENABLE_BACKUP', true),
+        // Back up original files before replacing them.
+        "enable_backup" => true,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Smart Vendor Replacement
-        |--------------------------------------------------------------------------
-        |
-        | Whether to analyze composer dependencies and only replace changed
-        | vendor packages. This can significantly speed up updates.
-        |
-        */
-        "smart_vendor_replacement" => env('XG_UPDATE_SMART_VENDOR', true),
+        // Analyze composer dependencies and only replace changed vendor
+        // packages, to speed up updates.
+        "smart_vendor_replacement" => true,
 
-        /*
-        |--------------------------------------------------------------------------
-        | Max Retry Attempts
-        |--------------------------------------------------------------------------
-        |
-        | Maximum number of retry attempts for failed chunk downloads.
-        |
-        */
-        "max_retries" => env('XG_UPDATE_MAX_RETRIES', 3),
+        // Retry attempts for a failed chunk download.
+        "max_retries" => 3,
 
         /*
         |--------------------------------------------------------------------------

@@ -104,17 +104,14 @@ chmod 755 storage/app/xg-update
 
 ## Configuration
 
-Add these optional settings to your `.env`:
-
 ```env
-# V2 Update Settings (all optional)
-XG_UPDATE_CHUNK_SIZE=10485760        # 10MB default
-XG_UPDATE_DOWNLOAD_TIMEOUT=300       # 5 minutes per chunk
-XG_UPDATE_EXTRACTION_BATCH=100       # Files per extraction batch
-XG_UPDATE_REPLACEMENT_BATCH=50       # Files per replacement batch
-XG_UPDATE_ENABLE_BACKUP=false        # Backup files before replacing
-XG_UPDATE_MAX_RETRIES=3              # Retry attempts for failed chunks
+XG_LICENSE_API_URL=https://license.xgenious.com
+XG_PRODUCT_TOKEN=your-unique-product-token
 ```
+
+Chunk size, batch sizes, retry count, and backup behavior are fixed internal
+defaults as of 6.5.2 - they're no longer `.env`-configurable, so a malformed
+override on the hosting side can't break the update pipeline.
 
 ## API Endpoints
 
@@ -397,17 +394,11 @@ The V2 system does not affect the existing V1 update system:
 ### "No active update" error
 The status file may be missing or corrupted. Visit `/update/v2` to start fresh.
 
-### Chunk download timeout
-Increase timeout in config:
-```env
-XG_UPDATE_DOWNLOAD_TIMEOUT=600
-```
-
-### Extraction slow
-Reduce batch size:
-```env
-XG_UPDATE_EXTRACTION_BATCH=50
-```
+### Chunk download timeout / extraction slow
+Timeout and batch size are fixed internal defaults (300s / 100 files) as of
+6.5.2, tuned to work safely across hosting environments - they're no longer
+`.env`-configurable. If a site consistently needs different values, that's a
+package-level change, not a per-site override.
 
 ### Permission errors
 Ensure storage directory is writable:

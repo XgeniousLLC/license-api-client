@@ -79,16 +79,11 @@ Add the following to your `.env` file:
 # License Server Configuration
 XG_LICENSE_API_URL=https://license.xgenious.com
 XG_PRODUCT_TOKEN=your-unique-product-token
-
-# V2 Update System Settings (optional, defaults shown)
-XG_UPDATE_CHUNK_SIZE=10485760        # 10MB chunk size
-XG_UPDATE_DOWNLOAD_TIMEOUT=300       # 5 minutes per chunk
-XG_UPDATE_EXTRACTION_BATCH=100       # Files per extraction batch
-XG_UPDATE_REPLACEMENT_BATCH=50       # Files per replacement batch
-XG_UPDATE_ENABLE_BACKUP=true         # Backup files before replacing
-XG_UPDATE_SMART_VENDOR=true          # Smart vendor package replacement
-XG_UPDATE_MAX_RETRIES=3              # Retry attempts for failed chunks
 ```
+
+Chunk size, batch sizes, retry count, backup, and smart-vendor-replacement are
+fixed internal defaults as of 6.5.2 - they're no longer `.env`-configurable, so
+a malformed override on the hosting side can't break the update pipeline.
 
 ## Step 5: Add Route to Admin Panel
 

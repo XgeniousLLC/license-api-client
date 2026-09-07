@@ -24,7 +24,7 @@ class BatchExtractor
      */
     public function extractBatch(int $batchNumber, ?int $batchSize = null): array
     {
-        $batchSize = $batchSize ?? Config::get('xgapiclient.update.extraction_batch_size', 100);
+        $batchSize = $batchSize ?? $this->resolveBatchSize();
         $paths = $this->statusManager->getPaths();
 
         try {
@@ -188,13 +188,30 @@ class BatchExtractor
         $this->fileListBuilt = true;
 
         // Calculate total batches and update status
-        $batchSize = Config::get('xgapiclient.update.extraction_batch_size', 100);
+        $batchSize = $this->resolveBatchSize();
         $totalBatches = (int) ceil(count($this->fileList) / $batchSize);
 
         $this->statusManager->updatePhase('extraction', [
             'total_files' => count($this->fileList),
             'total_batches' => $totalBatches,
         ]);
+    }
+
+    /**
+     * Resolve the configured extraction batch size, guarding against a
+     * malformed env override. `env('XG_UPDATE_EXTRACTION_BATCH', 100)`
+     * only falls back to 100 when the key is unset - if it's set to
+     * something like "100mb" it comes back as that literal string, a
+     * leading-numeric value PHP accepts in arithmetic with only a warning
+     * that Laravel promotes to a fatal ErrorException ("A non-numeric
+     * value encountered"). Casting here keeps a bad override from crashing
+     * extraction instead of just degrading to the default.
+     */
+    protected function resolveBatchSize(): int
+    {
+        $batchSize = (int) Config::get('xgapiclient.update.extraction_batch_size', 100);
+
+        return $batchSize > 0 ? $batchSize : 100;
     }
 
     /**

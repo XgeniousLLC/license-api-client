@@ -66,7 +66,7 @@ class BatchReplacer
 
     public function replaceBatch(int $batchNumber, ?int $batchSize = null): array
     {
-        $batchSize = $batchSize ?? Config::get('xgapiclient.update.replacement_batch_size', 50);
+        $batchSize = $batchSize ?? $this->resolveBatchSize();
         $paths = $this->statusManager->getPaths();
 
         try {
@@ -301,13 +301,30 @@ class BatchReplacer
         $this->fileListBuilt = true;
 
         // Update status with totals
-        $batchSize = Config::get('xgapiclient.update.replacement_batch_size', 50);
+        $batchSize = $this->resolveBatchSize();
         $totalBatches = (int) ceil(count($this->fileList) / $batchSize);
 
         $this->statusManager->updatePhase('replacement', [
             'total_files' => count($this->fileList),
             'total_batches' => $totalBatches,
         ]);
+    }
+
+    /**
+     * Resolve the configured replacement batch size, guarding against a
+     * malformed env override. `env('XG_UPDATE_REPLACEMENT_BATCH', 50)` only
+     * falls back to 50 when the key is unset - if it's set to something
+     * like "50 # Files per replacement batch" (e.g. pasted verbatim into a
+     * host's env editor that doesn't strip inline comments) it comes back
+     * as that literal string, a leading-numeric value PHP accepts in
+     * arithmetic with only a warning that Laravel promotes to a fatal
+     * ErrorException ("A non-numeric value encountered").
+     */
+    protected function resolveBatchSize(): int
+    {
+        $batchSize = (int) Config::get('xgapiclient.update.replacement_batch_size', 50);
+
+        return $batchSize > 0 ? $batchSize : 50;
     }
 
     /**

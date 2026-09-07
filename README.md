@@ -105,16 +105,12 @@ You can customize the behavior by adding these variables to your `.env` file:
 # License Server Configuration
 XG_LICENSE_API_URL=https://license.xgenious.com
 XG_PRODUCT_TOKEN=your-unique-product-token
-
-# V2 Update System Settings (all optional, defaults shown)
-XG_UPDATE_CHUNK_SIZE=10485760        # 10MB chunk size
-XG_UPDATE_DOWNLOAD_TIMEOUT=300       # 5 minutes per chunk
-XG_UPDATE_EXTRACTION_BATCH=100       # Files per extraction batch
-XG_UPDATE_REPLACEMENT_BATCH=50       # Files per replacement batch
-XG_UPDATE_ENABLE_BACKUP=true         # Backup files before replacing (recommended)
-XG_UPDATE_SMART_VENDOR=true          # Smart vendor package replacement
-XG_UPDATE_MAX_RETRIES=3              # Retry attempts for failed chunks
 ```
+
+Chunk size, batch sizes, retry count, backup, and smart-vendor-replacement are no
+longer `.env`-configurable as of 6.5.2 - they're fixed internal defaults tuned by
+the package itself, so a mistyped or malformed override on the hosting side can no
+longer break the update pipeline.
 
 ## Usage
 
