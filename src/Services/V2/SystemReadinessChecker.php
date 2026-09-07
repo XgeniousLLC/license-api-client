@@ -10,15 +10,19 @@ class SystemReadinessChecker
     protected const REQUIRED_EXTENSIONS = ['zip', 'curl', 'mbstring', 'openssl', 'fileinfo', 'json'];
 
     /**
-     * Recommended minimum memory_limit, in bytes, when the value isn't
-     * unlimited (-1). Below this, large-project extraction/merge is at real
-     * risk of hitting "Allowed memory size exhausted".
+     * Required minimum memory_limit, in bytes, when the value isn't
+     * unlimited (-1). Below this, the update is blocked - large-project
+     * extraction/merge is at real risk of hitting "Allowed memory size
+     * exhausted", so the admin is asked to raise it before proceeding
+     * rather than risking a failure partway through.
      */
     protected const RECOMMENDED_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024; // 256M
 
     /**
-     * Recommended minimum max_execution_time (seconds) when not unlimited
-     * (0). The merge step writes the whole reassembled ZIP in one request.
+     * Required minimum max_execution_time (seconds) when not unlimited (0).
+     * Below this, the update is blocked and the admin is asked to raise it
+     * first - the merge step writes the whole reassembled ZIP in one
+     * request, and a too-short limit can kill that mid-write.
      */
     protected const RECOMMENDED_MAX_EXECUTION_TIME = 300;
 
@@ -95,9 +99,9 @@ class SystemReadinessChecker
             $current = ini_get('memory_limit');
             return $this->result(
                 'Memory Limit',
-                'warning',
-                "memory_limit is {$current}, which may not be enough for a large update.",
-                'Raise memory_limit to at least 256M in php.ini (or via .htaccess / control panel), especially for large projects.'
+                'fail',
+                "memory_limit is {$current}, which is too low to safely complete this update.",
+                'Increase memory_limit to at least 256M (php.ini, .htaccess, or your hosting control panel), then try the update again.'
             );
         }
 
@@ -115,9 +119,9 @@ class SystemReadinessChecker
         if ($limit < self::RECOMMENDED_MAX_EXECUTION_TIME) {
             return $this->result(
                 'Execution Time Limit',
-                'warning',
-                "max_execution_time is {$limit}s, which may be too short for the merge/extraction steps on a large update.",
-                'Raise max_execution_time to at least 300 (or 0 for unlimited) in php.ini for the duration of the update.'
+                'fail',
+                "max_execution_time is {$limit}s, which is too short to safely complete the merge/extraction steps on this update.",
+                'Increase max_execution_time to at least 300 (or 0 for unlimited) in php.ini, then try the update again.'
             );
         }
 

@@ -2,6 +2,10 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.5.1 - 2026-September-07
+
+- Changed: the `Memory Limit` and `Execution Time Limit` readiness checks now block the update (status `fail`) instead of only warning - an admin is required to raise `memory_limit`/`max_execution_time` before the update proceeds, rather than being allowed to continue on a setting likely to fail partway through
+
 ## 6.5.0 - 2026-September-07
 
 - Added: `SystemReadinessChecker` service + `POST /update/v2/system-check` endpoint - verifies PHP version, required extensions (zip, curl, mbstring, openssl, fileinfo, json), memory_limit, max_execution_time, free disk space (sized against the actual update package size), and directory write permissions before a chunked update proceeds
