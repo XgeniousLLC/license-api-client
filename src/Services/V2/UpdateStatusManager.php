@@ -2,6 +2,7 @@
 
 namespace Xgenious\XgApiClient\Services\V2;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -270,6 +271,12 @@ class UpdateStatusManager
      */
     public function reset(): void
     {
+        // Cancelling or finalizing an update must never leave the public
+        // site stuck behind a maintenance page.
+        if (app()->isDownForMaintenance()) {
+            Artisan::call('up');
+        }
+
         if (File::exists($this->statusFile)) {
             File::delete($this->statusFile);
         }

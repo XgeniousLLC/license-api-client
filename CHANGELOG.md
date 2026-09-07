@@ -2,6 +2,13 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.6.0 - 2026-September-07
+
+- Fixed: a failure during the Replace phase of a V2 update could leave the live site stuck behind a maintenance page indefinitely, with no automatic recovery - any failure, cancel, or finalize now restores public access automatically (`BatchReplacer`, `UpdateStatusManager::reset()`)
+- Fixed: the update wizard's own requests could get blocked by the maintenance mode it had just enabled, breaking any update over ~50 files (the default batch size) from the inside - the client now acquires Laravel's maintenance-mode bypass cookie right after maintenance mode turns on, before making its next request
+- Changed: redesigned the V2 System Update page (`resources/views/v2/update.blade.php`) - warm color palette, plain-language status copy, technical detail (log console, phase stats, Composer analysis) moved behind an optional "Show technical details" disclosure, and dedicated Interrupted/Error states replacing the old `alert()`-based error handling
+- Removed: the permanently-hidden, non-functional Pause button and its broken `pause()`/`isPaused` handling in `UpdateManager.js`; the unused `chunkConcurrency` option; the unused `getStatus()`/`getLogs()` client methods
+
 ## 6.5.3 - 2026-September-07
 
 - Changed: `base_api_url` is no longer read from `XG_LICENSE_API_URL` in `.env` - there is only ever one xgenious license server, so it's now a fixed value (`https://license.xgenious.com`) in `config/xgapiclient.php`, same rationale as the update-tuning knobs fixed in 6.5.2. `XG_PRODUCT_TOKEN` remains the only supported `.env` override

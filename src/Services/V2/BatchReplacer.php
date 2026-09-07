@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\Log;
 
 class BatchReplacer
 {
+    /**
+     * Path segment used both to enable maintenance mode's bypass and, via
+     * getMaintenanceBypassUrl(), to let the client pre-authorize itself
+     * before it makes another request while maintenance mode is active.
+     */
+    protected const MAINTENANCE_BYPASS_SECRET = 'xg-update-in-progress';
+
     protected UpdateStatusManager $statusManager;
     protected ComposerDiffHandler $composerDiff;
     protected array $fileList = [];
@@ -241,6 +248,7 @@ class BatchReplacer
                 'next_batch' => $batchNumber + 1,
                 'errors' => $errors,
                 'composer_update_required' => $this->composerDiff->requiresComposerUpdate(),
+                'maintenance_bypass_url' => $batchNumber === 0 ? $this->getMaintenanceBypassUrl() : null,
             ];
 
         } catch (\Exception $e) {
@@ -253,6 +261,11 @@ class BatchReplacer
             $this->statusManager->recordError('replacement_failed', $e->getMessage(), [
                 'batch' => $batchNumber,
             ]);
+
+            // A failed batch must never leave the public site stuck behind
+            // a maintenance page - restore access immediately rather than
+            // waiting on a client that may never come back.
+            $this->disableMaintenanceMode();
 
             return [
                 'success' => false,
@@ -512,7 +525,7 @@ class BatchReplacer
         try {
             // Enable maintenance mode with secret to allow update routes
             Artisan::call('down', [
-                '--secret' => 'xg-update-in-progress',
+                '--secret' => self::MAINTENANCE_BYPASS_SECRET,
                 '--render' => 'errors::503',
             ]);
             $this->statusManager->update(['maintenance_mode' => true]);
@@ -520,6 +533,16 @@ class BatchReplacer
         } catch (\Exception $e) {
             Log::warning("Failed to enable maintenance mode", ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * URL the client visits once to acquire Laravel's maintenance-mode
+     * bypass cookie for its own tab - without it, the wizard's own next
+     * request would be blocked by the maintenance mode it just enabled.
+     */
+    public function getMaintenanceBypassUrl(): string
+    {
+        return url('/' . self::MAINTENANCE_BYPASS_SECRET);
     }
 
     /**

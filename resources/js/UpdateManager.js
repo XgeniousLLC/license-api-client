@@ -20,7 +20,6 @@ class UpdateManager {
 
         // State
         this.isRunning = false;
-        this.isPaused = false;
         this.currentPhase = null;
         this.status = null;
         this.abortController = null;
@@ -29,7 +28,6 @@ class UpdateManager {
         // Configuration
         this.retryAttempts = options.retryAttempts || 3;
         this.retryDelay = options.retryDelay || 2000;
-        this.chunkConcurrency = options.chunkConcurrency || 1;
     }
 
     /**
@@ -103,20 +101,6 @@ class UpdateManager {
     }
 
     /**
-     * Get current update status
-     */
-    async getStatus() {
-        try {
-            const result = await this.request('/status');
-            this.status = result.status;
-            return result;
-        } catch (error) {
-            this.log(`Failed to get status: ${error.message}`, 'error');
-            throw error;
-        }
-    }
-
-    /**
      * Check if update can be resumed
      */
     async canResume() {
@@ -152,7 +136,6 @@ class UpdateManager {
         }
 
         this.isRunning = true;
-        this.isPaused = false;
         this.abortController = new AbortController();
 
         try {
@@ -175,6 +158,25 @@ class UpdateManager {
                 this.log('Update cancelled', 'warning');
             } else {
                 this.log(`Update failed: ${error.message}`, 'error');
+
+                // Last-resort safety net: never leave the public site behind
+                // a maintenance page just because this run failed. Normally
+                // the server already restores access itself on error; this
+                // only matters if the failure happened before that could run
+                // (e.g. a dropped connection). Best-effort - a failure here
+                // is logged, not thrown.
+                if (this.currentPhase === 'replacement' || this.currentPhase === 'migration') {
+                    try {
+                        await this.request('/replacement/maintenance', {
+                            method: 'POST',
+                            body: JSON.stringify({ enable: false }),
+                        });
+                        this.log('Restored public site access after the failure', 'info');
+                    } catch (restoreError) {
+                        this.log(`Could not confirm maintenance mode was cleared: ${restoreError.message}`, 'warning');
+                    }
+                }
+
                 this.onError(error);
             }
         } finally {
@@ -368,11 +370,6 @@ class UpdateManager {
 
         // Download chunks sequentially (more reliable)
         for (let i = 0; i < missingChunks.length; i++) {
-            if (this.isPaused) {
-                this.log('Download paused', 'warning');
-                throw new Error('Update paused');
-            }
-
             const chunkIndex = missingChunks[i];
             await this.downloadChunkWithRetry(chunkIndex);
 
@@ -439,10 +436,6 @@ class UpdateManager {
         let hasMore = true;
 
         while (hasMore) {
-            if (this.isPaused) {
-                throw new Error('Update paused');
-            }
-
             const result = await this.request('/extraction/batch', {
                 method: 'POST',
                 body: JSON.stringify({ batch }),
@@ -484,10 +477,6 @@ class UpdateManager {
         let hasMore = true;
 
         while (hasMore) {
-            if (this.isPaused) {
-                throw new Error('Update paused');
-            }
-
             const result = await this.request('/replacement/batch', {
                 method: 'POST',
                 body: JSON.stringify({ batch }),
@@ -507,6 +496,17 @@ class UpdateManager {
                     this.log('No Composer dependency changes detected', 'info');
                 }
                 composerAnalyzed = true;
+            }
+
+            // The server just enabled maintenance mode for this batch - visit
+            // the bypass URL now so this tab's own next request isn't blocked
+            // by the maintenance mode it just turned on.
+            if (result.maintenance_bypass_url) {
+                try {
+                    await fetch(result.maintenance_bypass_url, { credentials: 'same-origin' });
+                } catch (error) {
+                    this.log(`Could not pre-authorize maintenance bypass: ${error.message}`, 'warning');
+                }
             }
 
             this.updateProgress('replacement', result.percent, {
@@ -568,19 +568,9 @@ class UpdateManager {
     }
 
     /**
-     * Pause the update
-     */
-    pause() {
-        this.isPaused = true;
-        this.log('Update paused', 'warning');
-    }
-
-    /**
      * Cancel the update
      */
     async cancel() {
-        this.isPaused = true;
-
         if (this.abortController) {
             this.abortController.abort();
         }
@@ -593,14 +583,6 @@ class UpdateManager {
         }
 
         this.isRunning = false;
-    }
-
-    /**
-     * Get update logs
-     */
-    async getLogs() {
-        const result = await this.request('/logs');
-        return result.logs || [];
     }
 
     /**
