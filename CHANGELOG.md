@@ -2,6 +2,13 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.6.2 - 2026-September-08
+
+- Changed: the V2 System Update page's error banner now shows a direct hint - "Set it under General Settings → License Settings, then try again" (linked to the `license.activation` route) - when the failure is the "License key or product UID not configured" error, instead of leaving the admin to guess where to fix it
+- Fixed: the error banner had no top margin, so it sat flush against the "Check for Updates"/"Update Now" button above it
+- Changed: links on the page now use the theme's accent color instead of the browser-default blue, which clashed with the warm palette
+- Changed: footer note now reads "Powered by Xgenious.com" (linked) instead of the internal "XgApiClient V2 Chunked Update System" label
+
 ## 6.6.1 - 2026-September-07
 
 - Fixed: `composer test` was non-functional - `phpunit.xml` had no `<testsuites>` block, and the one existing test's data provider wasn't `static`, which PHPUnit 11 requires

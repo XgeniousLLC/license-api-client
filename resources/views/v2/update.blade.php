@@ -62,6 +62,9 @@
 
         * { box-sizing: border-box; }
 
+        a { color: var(--accent); }
+        a:hover { color: var(--accent-2); }
+
         body {
             background: var(--ground);
             color: var(--text);
@@ -239,7 +242,7 @@
         }
 
         .banner.warn { background: var(--warning-soft); }
-        .banner.err { background: var(--danger-soft); }
+        .banner.err { background: var(--danger-soft); margin-top: 20px; }
 
         .banner-title {
             font-size: 15.5px;
@@ -643,6 +646,7 @@
                 <div class="banner err">
                     <p class="banner-title">We couldn't continue</p>
                     <p class="banner-body" id="errorMessage"></p>
+                    <p class="banner-body" id="errorHint" hidden>Set it under <a href="{{ route('license.activation') }}">General Settings &rarr; License Settings</a>, then try again.</p>
                 </div>
                 <details class="tech">
                     <summary>Show technical details</summary>
@@ -675,7 +679,7 @@
             </div>
         </div>
 
-        <p class="footer-note">XgApiClient V2 Chunked Update System</p>
+        <p class="footer-note">Powered by <a href="https://xgenious.com" target="_blank" rel="noopener noreferrer">Xgenious.com</a></p>
     </div>
 
     <script src="{{ asset('assets/vendor/xgapiclient/js/UpdateManager.js') }}"></script>
@@ -933,6 +937,7 @@
 
         function showError(message) {
             document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorHint').hidden = !/license key or product uid not configured/i.test(message || '');
             document.getElementById('updateErrorSection').hidden = false;
         }
 
