@@ -28,6 +28,10 @@ class UpdateManager {
         // Configuration
         this.retryAttempts = options.retryAttempts || 3;
         this.retryDelay = options.retryDelay || 2000;
+        // Batch requests (replacement/extraction) run for many minutes back
+        // to back - a single dropped connection must not kill the run.
+        this.batchRetryAttempts = options.batchRetryAttempts || 5;
+        this.batchRetryDelay = options.batchRetryDelay || 2000;
     }
 
     /**
@@ -50,6 +54,18 @@ class UpdateManager {
         }
 
         const response = await fetch(url, config);
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            // E.g. a 503 HTML page when maintenance mode is blocking the
+            // update routes (missing middleware exception), or a proxy
+            // error page - surface the status instead of a JSON parse error.
+            const hint = response.status === 503
+                ? ' The server may be blocking update routes while in maintenance mode (check PreventRequestsDuringMaintenance $except).'
+                : '';
+            throw new Error(`Server returned ${response.status} with a non-JSON response.${hint}`);
+        }
+
         const data = await response.json();
 
         if (!response.ok && !data.success) {
@@ -57,6 +73,46 @@ class UpdateManager {
         }
 
         return data;
+    }
+
+    /**
+     * Retry wrapper for batch requests. Only network-level failures
+     * (dropped connection, proxy timeout - what fetch() rejects with) are
+     * retried: a JSON error response means the server already decided and
+     * retrying would just repeat it.
+     */
+    async requestWithRetry(endpoint, options = {}, label = 'request') {
+        const attempts = this.batchRetryAttempts;
+        const baseDelay = this.batchRetryDelay;
+        let lastError;
+
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                return await this.request(endpoint, options);
+            } catch (error) {
+                lastError = error;
+
+                if (!this.isNetworkError(error) || attempt === attempts) {
+                    throw error;
+                }
+
+                const delay = baseDelay * attempt;
+                this.log(`${label} connection failed (${error.message}), retrying (${attempt}/${attempts}) in ${delay / 1000}s...`, 'warning');
+                await this.sleep(delay);
+            }
+        }
+
+        throw lastError;
+    }
+
+    /**
+     * fetch() rejects with a TypeError for dropped connections, DNS
+     * failures, proxy timeouts, etc. - browsers phrase it as
+     * "Failed to fetch", "NetworkError", "Load failed", ...
+     */
+    isNetworkError(error) {
+        return error instanceof TypeError
+            || /failed to fetch|networkerror|load failed|network request failed/i.test(error.message || '');
     }
 
     /**
@@ -264,7 +320,10 @@ class UpdateManager {
                 break;
 
             case 'replacement':
-                await this.runReplacementPhase();
+                // Continue from the last completed batch instead of redoing
+                // the whole phase - every redone batch is another chance
+                // for a transient failure on a large update.
+                await this.runReplacementPhase(resumePoint.replacement?.current_batch || 0);
                 await this.runMigrationPhase(isTenant);
                 await this.runCompletionPhase();
                 break;
@@ -436,10 +495,10 @@ class UpdateManager {
         let hasMore = true;
 
         while (hasMore) {
-            const result = await this.request('/extraction/batch', {
+            const result = await this.requestWithRetry('/extraction/batch', {
                 method: 'POST',
                 body: JSON.stringify({ batch }),
-            });
+            }, `Extraction batch ${batch}`);
 
             if (!result.success) {
                 throw new Error(result.error || 'Extraction failed');
@@ -464,30 +523,38 @@ class UpdateManager {
 
     /**
      * Replacement phase - replace files in batches
+     *
+     * @param {number} startBatch batch to start from (resume point - the
+     * last completed batch is re-processed, file copies are idempotent)
      */
-    async runReplacementPhase() {
+    async runReplacementPhase(startBatch = 0) {
         this.setPhase('replacement');
         this.log('Starting file replacement...');
         this.log('Enabling maintenance mode...');
 
+        if (startBatch > 0) {
+            this.log(`Resuming file replacement from batch ${startBatch} (completed work is not redone)`);
+        }
+
         // Get and display composer analysis on first batch
         let composerAnalyzed = false;
+        let firstBatch = true;
 
-        let batch = 0;
+        let batch = startBatch;
         let hasMore = true;
 
         while (hasMore) {
-            const result = await this.request('/replacement/batch', {
+            const result = await this.requestWithRetry('/replacement/batch', {
                 method: 'POST',
                 body: JSON.stringify({ batch }),
-            });
+            }, `Replacement batch ${batch}`);
 
             if (!result.success) {
                 throw new Error(result.error || 'Replacement failed');
             }
 
-            // On first batch, get composer analysis
-            if (batch === 0 && !composerAnalyzed) {
+            // On first batch of this run, get composer analysis
+            if (firstBatch && !composerAnalyzed) {
                 const analysis = await this.getComposerAnalysis();
                 if (analysis && analysis.has_changes) {
                     this.log(`Composer: ${analysis.statistics.changed} package(s) updated, ${analysis.statistics.added} added, ${analysis.statistics.removed} removed`, 'info');
@@ -517,6 +584,7 @@ class UpdateManager {
 
             hasMore = result.has_more;
             batch = result.next_batch;
+            firstBatch = false;
 
             // Log progress every 5 batches
             if (batch % 5 === 0) {

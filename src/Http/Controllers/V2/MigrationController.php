@@ -70,14 +70,18 @@ class MigrationController extends Controller
                 'success' => true,
                 'message' => 'Database migration completed',
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Migration failed', ['error' => $e->getMessage()]);
             $this->statusManager->recordError('migration_failed', $e->getMessage());
+
+            // recordError() already restores public access - this is an
+            // explicit second guarantee at the site of the failure.
+            $this->bringSiteUp();
 
             // Try to restore production environment
             try {
                 XGsetEnvValue(['APP_ENV' => 'production']);
-            } catch (\Exception $envError) {
+            } catch (\Throwable $envError) {
                 Log::warning('Failed to restore APP_ENV', ['error' => $envError->getMessage()]);
             }
 
@@ -314,6 +318,26 @@ class MigrationController extends Controller
                 'success' => false,
                 'message' => 'Failed to clear caches: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Bring the site back up if it is down. Best-effort, never throws.
+     * Maintenance is normally already off by the migration phase - this
+     * only matters if a replacement failure slipped through.
+     */
+    protected function bringSiteUp(): void
+    {
+        try {
+            if (app()->isDownForMaintenance()) {
+                Artisan::call('up');
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to restore site access after migration failure', ['error' => $e->getMessage()]);
+            $downFile = storage_path('framework/down');
+            if (is_file($downFile)) {
+                @unlink($downFile);
+            }
         }
     }
 

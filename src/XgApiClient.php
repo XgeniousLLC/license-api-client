@@ -57,19 +57,33 @@ class XgApiClient
         if ($download_status === 200) {
             Artisan::call('down');
 
-            $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
-            CacheCleaner::clearBootstrapCache();
-            if ($this->systemUpgradeWithLatestVersion($updateInfo)) {
+            try {
+                $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
                 CacheCleaner::clearBootstrapCache();
+                if ($this->systemUpgradeWithLatestVersion($updateInfo)) {
+                    CacheCleaner::clearBootstrapCache();
+                    Artisan::call('up');
+                    if (!$this->systemDbUpgrade($isTenant,$version)){
+                        $returnVal ['msg'] = __('Database Upgrade and Migration failed');
+                        $returnVal ['type'] = "success";
+                        return $returnVal;
+                    }
+                }
                 Artisan::call('up');
-                if (!$this->systemDbUpgrade($isTenant,$version)){
-                    $returnVal ['msg'] = __('Database Upgrade and Migration failed');
-                    $returnVal ['type'] = "success";
-                    return $returnVal;
+                return $returnVal;
+            } finally {
+                // The site must always come back live, even if the file
+                // replacement or DB upgrade above threw or returned early
+                // on a path that skipped the `up` calls.
+                try {
+                    Artisan::call('up');
+                } catch (\Throwable $ignored) {
+                    $downFile = storage_path('framework/down');
+                    if (is_file($downFile)) {
+                        @unlink($downFile);
+                    }
                 }
             }
-            Artisan::call('up');
-            return $returnVal;
         }
         return false;
     }

@@ -155,7 +155,7 @@ class BatchReplacer
 
                 try {
                     $destPath = $this->getDestinationPath($relativePath);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     Log::error("getDestinationPath exception for {$relativePath}: " . $e->getMessage());
                     $destPath = null;
                 }
@@ -203,7 +203,7 @@ class BatchReplacer
                         $errors[] = $relativePath;
                         Log::error("Source file not found: {$sourcePath}");
                     }
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $errors[] = $relativePath;
                     Log::error("Failed to replace file: {$relativePath}", [
                         'error' => $e->getMessage(),
@@ -251,7 +251,7 @@ class BatchReplacer
                 'maintenance_bypass_url' => $batchNumber === 0 ? $this->getMaintenanceBypassUrl() : null,
             ];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Replacement failed", [
                 'batch' => $batchNumber,
                 'error' => $e->getMessage(),
@@ -265,6 +265,8 @@ class BatchReplacer
             // A failed batch must never leave the public site stuck behind
             // a maintenance page - restore access immediately rather than
             // waiting on a client that may never come back.
+            // (recordError() already attempts this too - this is a second,
+            // explicit guarantee at the site of the failure.)
             $this->disableMaintenanceMode();
 
             return [
@@ -277,9 +279,22 @@ class BatchReplacer
 
     /**
      * Build list of files to replace from extracted directory
+     *
+     * The list is built once per update run and cached to disk: without
+     * this, every batch request re-scans tens of thousands of extracted
+     * files, and that fixed per-request cost alone can push a batch past
+     * the host's request timeout (killed process = no log, client sees
+     * "Failed to fetch"). The cache is keyed by update_id, so a new
+     * update always rebuilds it.
      */
     protected function buildFileList(string $extractedPath): void
     {
+        if ($this->loadCachedFileList()) {
+            $this->fileListBuilt = true;
+            $this->refreshFileListTotals();
+            return;
+        }
+
         $this->fileList = [];
 
         if (!File::isDirectory($extractedPath)) {
@@ -313,6 +328,16 @@ class BatchReplacer
 
         $this->fileListBuilt = true;
 
+        $this->saveCachedFileList();
+        $this->refreshFileListTotals();
+    }
+
+    /**
+     * Update status with file totals (also re-applied when the list is
+     * restored from cache, so resume always reports correct totals).
+     */
+    protected function refreshFileListTotals(): void
+    {
         // Update status with totals
         $batchSize = $this->resolveBatchSize();
         $totalBatches = (int) ceil(count($this->fileList) / $batchSize);
@@ -321,6 +346,66 @@ class BatchReplacer
             'total_files' => count($this->fileList),
             'total_batches' => $totalBatches,
         ]);
+    }
+
+    protected function fileListCachePath(): string
+    {
+        return $this->statusManager->getPaths()['base'] . '/.replacement-file-list.json';
+    }
+
+    /**
+     * Restore the file list built by an earlier batch of the same update.
+     * Returns false when there is no usable cache (new update, cache
+     * wiped, or corrupt) so the caller falls back to a full scan.
+     */
+    protected function loadCachedFileList(): bool
+    {
+        try {
+            $cachePath = $this->fileListCachePath();
+
+            if (!is_file($cachePath)) {
+                return false;
+            }
+
+            $cached = json_decode((string) @file_get_contents($cachePath), true);
+
+            if (!is_array($cached) || empty($cached['files']) || !is_array($cached['files'])) {
+                return false;
+            }
+
+            $status = $this->statusManager->getStatus();
+
+            if (!$status || ($cached['update_id'] ?? null) !== ($status['update_id'] ?? null)) {
+                return false;
+            }
+
+            $this->fileList = array_values($cached['files']);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Failed to load cached replacement file list, rescanning', ['error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Persist the just-built file list. Best-effort: a cache failure must
+     * never break the update, it just means the next batch rescans.
+     */
+    protected function saveCachedFileList(): void
+    {
+        try {
+            $status = $this->statusManager->getStatus();
+
+            File::put($this->fileListCachePath(), json_encode([
+                'update_id' => $status['update_id'] ?? null,
+                'built_at' => date('c'),
+                'files' => $this->fileList,
+            ]));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to cache replacement file list', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -449,7 +534,7 @@ class BatchReplacer
 
             Log::warning("No mapping found in change-logs.json for: {$relativePath}");
             return null;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Failed to parse change-logs.json", ['error' => $e->getMessage()]);
             return null;
         }
@@ -512,13 +597,18 @@ class BatchReplacer
             }
 
             File::copy($originalPath, $backupPath);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::warning("Failed to backup file: {$relativePath}", ['error' => $e->getMessage()]);
         }
     }
 
     /**
      * Enable maintenance mode
+     *
+     * Also registers a shutdown fallback so that even a fatal error
+     * (memory limit, max execution time, uncatchable engine error) during
+     * file replacement restores public access instead of leaving the
+     * `down` file behind indefinitely.
      */
     protected function enableMaintenanceMode(): void
     {
@@ -530,7 +620,8 @@ class BatchReplacer
             ]);
             $this->statusManager->update(['maintenance_mode' => true]);
             $this->statusManager->addLog('Maintenance mode enabled with update bypass');
-        } catch (\Exception $e) {
+            $this->registerMaintenanceShutdownFallback();
+        } catch (\Throwable $e) {
             Log::warning("Failed to enable maintenance mode", ['error' => $e->getMessage()]);
         }
     }
@@ -547,16 +638,105 @@ class BatchReplacer
 
     /**
      * Disable maintenance mode
+     *
+     * Best-effort and never throws: a failure here must not leave the site
+     * down. If `artisan up` fails, falls back to removing the `down` file
+     * directly, then records the outcome in the update status either way.
      */
     public function disableMaintenanceMode(): void
     {
         try {
             Artisan::call('up');
-            $this->statusManager->update(['maintenance_mode' => false]);
-            $this->statusManager->addLog('Maintenance mode disabled');
-        } catch (\Exception $e) {
-            Log::warning("Failed to disable maintenance mode", ['error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            Log::warning("Artisan up failed, trying direct down-file removal", ['error' => $e->getMessage()]);
         }
+
+        if ($this->isAppDown()) {
+            try {
+                $downFile = storage_path('framework/down');
+                if (is_file($downFile)) {
+                    @unlink($downFile);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Failed to remove maintenance down file", ['error' => $e->getMessage()]);
+            }
+        }
+
+        try {
+            $this->statusManager->update(['maintenance_mode' => false]);
+            $this->statusManager->addLog(
+                $this->isAppDown()
+                    ? 'Maintenance mode disable attempted but site may still be down - check manually with `php artisan up`'
+                    : 'Maintenance mode disabled'
+            );
+        } catch (\Throwable $e) {
+            Log::warning("Failed to record maintenance mode state", ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Check whether the app is currently down, without letting a broken
+     * app state turn the check itself into a fatal.
+     */
+    protected function isAppDown(): bool
+    {
+        try {
+            return app()->isDownForMaintenance();
+        } catch (\Throwable $e) {
+            return is_file(storage_path('framework/down'));
+        }
+    }
+
+    /**
+     * Last-resort net for fatals (time/memory limit) mid-replacement.
+     * Only lifts maintenance that this update enabled (status flag), never
+     * maintenance put up by someone else. Registered once per request.
+     */
+    protected function registerMaintenanceShutdownFallback(): void
+    {
+        static $registered = false;
+
+        if ($registered) {
+            return;
+        }
+        $registered = true;
+
+        $statusFile = $this->statusManager->getPaths()['status_file'];
+
+        register_shutdown_function(function () use ($statusFile) {
+            try {
+                $status = is_file($statusFile)
+                    ? json_decode((string) @file_get_contents($statusFile), true)
+                    : null;
+
+                if (!is_array($status) || ($status['maintenance_mode'] ?? false) !== true) {
+                    return;
+                }
+
+                $downFile = storage_path('framework/down');
+                $stillDown = true;
+
+                try {
+                    if (function_exists('app') && app()->isDownForMaintenance()) {
+                        try {
+                            Artisan::call('up');
+                        } catch (\Throwable $ignored) {
+                        }
+                        $stillDown = app()->isDownForMaintenance();
+                    } else {
+                        $stillDown = is_file($downFile);
+                    }
+                } catch (\Throwable $ignored) {
+                    $stillDown = is_file($downFile);
+                }
+
+                if ($stillDown && is_file($downFile)) {
+                    @unlink($downFile);
+                }
+            } catch (\Throwable $ignored) {
+                // Shutdown fallback must never break the response.
+            }
+        });
     }
 
     /**
@@ -608,6 +788,14 @@ class BatchReplacer
         $this->fileListBuilt = false;
         $this->composerAnalyzed = false;
         $this->shouldReplaceCallback = null;
+
+        try {
+            $cachePath = $this->fileListCachePath();
+            if (is_file($cachePath)) {
+                @unlink($cachePath);
+            }
+        } catch (\Throwable $ignored) {
+        }
     }
 
     public function setShouldReplaceCallback(callable $callback): void
@@ -677,7 +865,7 @@ class BatchReplacer
 
                     File::copy($file->getPathname(), $destPath);
                     $replaced++;
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $errors[] = $relativePath;
                     Log::warning("Failed to update XgApiClient file: {$relativePath}", ['error' => $e->getMessage()]);
                 }
@@ -692,7 +880,7 @@ class BatchReplacer
                 'skipped' => $skipped,
                 'errors' => $errors,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Failed to update XgApiClient package', ['error' => $e->getMessage()]);
 
             return [

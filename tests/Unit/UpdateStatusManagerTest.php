@@ -61,6 +61,19 @@ it('marks the update as errored and stops it being resumable', function () {
         ->and($manager->canResume())->toBeFalse();
 });
 
+it('brings the site back up when an error is recorded while stuck in maintenance mode', function () {
+    $manager = new UpdateStatusManager();
+    $manager->initiate('2.0.0', []);
+
+    $this->artisan('down');
+    expect(app()->isDownForMaintenance())->toBeTrue();
+
+    $manager->recordError('replacement_failed', 'Something broke');
+
+    expect(app()->isDownForMaintenance())->toBeFalse()
+        ->and($manager->getStatus()['maintenance_mode'])->toBeFalse();
+});
+
 it('brings the site back up when resetting while stuck in maintenance mode', function () {
     $this->artisan('down');
     expect(app()->isDownForMaintenance())->toBeTrue();

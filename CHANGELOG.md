@@ -2,6 +2,14 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.6.3 - 2026-September-29
+
+- Fixed: a mid-replacement failure ("Failed to fetch" with nothing in the log - the batch request is killed by the host's timeout, so PHP never logs) no longer kills the update - batch requests in `UpdateManager.js` now retry transient network failures (5 attempts with backoff), and resume continues from the last completed batch instead of redoing the whole Replace phase from batch 0
+- Fixed: every replacement batch request re-scanned all ~30k extracted files from disk, stacking seconds of fixed overhead onto each request and pushing batches past shared-hosting timeouts - the file list is now built once per update run and cached (`storage/app/xg-update/.replacement-file-list.json`, keyed by `update_id`)
+- Fixed: remaining paths that could leave the site stuck in maintenance mode - `BatchReplacer`/`ReplacementController`/`MigrationController` now catch `\Throwable` (not just `\Exception`), `recordError()` restores public access, `disableMaintenanceMode()` falls back to removing the `down` file if `artisan up` fails, a shutdown fallback covers fatal errors mid-replacement, and the legacy V1 `downloadAndRunUpdateProcess()` wraps `down`/`up` in `try/finally`
+- Changed: non-JSON error responses (e.g. a 503 HTML page when update routes aren't exempted from maintenance mode) now report the HTTP status with a hint instead of a cryptic JSON parse error
+- Added: regression tests - `recordError()` brings a maintenance-stuck site back up, and the replacement file list is cached per update run and invalidated by a new `update_id`
+
 ## 6.6.2 - 2026-September-08
 
 - Changed: the V2 System Update page's error banner now shows a direct hint - "Set it under General Settings → License Settings, then try again" (linked to the `license.activation` route) - when the failure is the "License key or product UID not configured" error, instead of leaving the admin to guess where to fix it

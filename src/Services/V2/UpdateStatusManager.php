@@ -187,6 +187,10 @@ class UpdateStatusManager
 
     /**
      * Record an error
+     *
+     * Any recorded error also restores public access: the site must never
+     * stay behind a maintenance page just because an update step failed.
+     * The restore is best-effort and never throws.
      */
     public function recordError(string $type, string $message, array $context = []): void
     {
@@ -200,6 +204,45 @@ class UpdateStatusManager
             ];
             $status['phase'] = 'error';
             $this->save($status);
+        }
+
+        $this->bringSiteUp();
+    }
+
+    /**
+     * Bring the site back up if it is down for maintenance.
+     * Best-effort, never throws - used by every error/cancel/finalize path.
+     */
+    protected function bringSiteUp(): void
+    {
+        try {
+            if (app()->isDownForMaintenance()) {
+                try {
+                    Artisan::call('up');
+                } catch (\Throwable $ignored) {
+                }
+
+                if (app()->isDownForMaintenance()) {
+                    $downFile = storage_path('framework/down');
+                    if (is_file($downFile)) {
+                        @unlink($downFile);
+                    }
+                }
+            }
+        } catch (\Throwable $ignored) {
+            $downFile = storage_path('framework/down');
+            if (is_file($downFile)) {
+                @unlink($downFile);
+            }
+        }
+
+        try {
+            $status = $this->getStatus();
+            if ($status && ($status['maintenance_mode'] ?? false)) {
+                $status['maintenance_mode'] = false;
+                $this->save($status);
+            }
+        } catch (\Throwable $ignored) {
         }
     }
 
@@ -268,17 +311,24 @@ class UpdateStatusManager
 
     /**
      * Reset status (for fresh start)
+     *
+     * Cancelling or finalizing an update must never leave the public
+     * site stuck behind a maintenance page - and a failing `artisan up`
+     * must never abort the reset itself.
      */
     public function reset(): void
     {
-        // Cancelling or finalizing an update must never leave the public
-        // site stuck behind a maintenance page.
-        if (app()->isDownForMaintenance()) {
-            Artisan::call('up');
-        }
+        $this->bringSiteUp();
 
         if (File::exists($this->statusFile)) {
             File::delete($this->statusFile);
+        }
+
+        // Dotfiles are ignored by cleanDirectory()'s file listing, so
+        // remove the replacer's cached file list explicitly.
+        $cachedFileList = $this->statusDir . '/.replacement-file-list.json';
+        if (is_file($cachedFileList)) {
+            @unlink($cachedFileList);
         }
 
         // Clean up update directory contents but keep directory

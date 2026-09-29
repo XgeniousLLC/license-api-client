@@ -50,36 +50,74 @@ class ReplacementController extends Controller
         // Check if vendor replacement is enabled
         $smartVendor = config('xgapiclient.update.smart_vendor_replacement', true);
 
-        if ($smartVendor) {
-            $extractedPath = $this->statusManager->getPaths()['extracted'];
-            $this->composerDiffHandler->analyze($extractedPath);
+        try {
+            if ($smartVendor) {
+                $extractedPath = $this->statusManager->getPaths()['extracted'];
+                $this->composerDiffHandler->analyze($extractedPath);
 
-            // Set the callback for checking if a file should be replaced
-            $this->replacer->setShouldReplaceCallback(function ($relativePath) {
-                return $this->composerDiffHandler->shouldReplaceVendorPath($relativePath);
-            });
-        }
-
-        // Replace batch
-        $result = $this->replacer->replaceBatch($batchNumber, $batchSize);
-
-        // If replacement complete, update phase and proceed to migration
-        if ($result['success'] && !$result['has_more']) {
-            $this->statusManager->updatePhase('replacement', ['status' => 'completed']);
-            $this->statusManager->update(['phase' => 'migration']);
-            $this->statusManager->addLog('File replacement completed. Ready for database migration.');
-
-            // Clear opcache to ensure new files are used
-            $opcacheCleared = $this->replacer->clearOpcache();
-            if ($opcacheCleared) {
-                $this->statusManager->addLog('OPcache cleared successfully');
+                // Set the callback for checking if a file should be replaced
+                $this->replacer->setShouldReplaceCallback(function ($relativePath) {
+                    return $this->composerDiffHandler->shouldReplaceVendorPath($relativePath);
+                });
             }
 
-            // Disable maintenance mode
-            $this->replacer->disableMaintenanceMode();
-        }
+            // Replace batch
+            $result = $this->replacer->replaceBatch($batchNumber, $batchSize);
 
-        return response()->json($result);
+            // If the batch itself failed, the replacer already restored
+            // public access - make doubly sure here before responding.
+            if (!($result['success'] ?? false)) {
+                $this->replacer->disableMaintenanceMode();
+
+                return response()->json($result);
+            }
+
+            // If replacement complete, update phase and proceed to migration
+            if (!$result['has_more']) {
+                try {
+                    $this->statusManager->updatePhase('replacement', ['status' => 'completed']);
+                    $this->statusManager->update(['phase' => 'migration']);
+                    $this->statusManager->addLog('File replacement completed. Ready for database migration.');
+
+                    // Clear opcache to ensure new files are used
+                    $opcacheCleared = $this->replacer->clearOpcache();
+                    if ($opcacheCleared) {
+                        $this->statusManager->addLog('OPcache cleared successfully');
+                    }
+                } finally {
+                    // Finalization must never leave the site down, even if
+                    // the status/opcache bookkeeping above threw.
+                    $this->replacer->disableMaintenanceMode();
+                }
+            }
+
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Replacement batch failed', [
+                'batch' => $batchNumber,
+                'error' => $e->getMessage(),
+            ]);
+
+            try {
+                $this->statusManager->recordError('replacement_failed', $e->getMessage(), [
+                    'batch' => $batchNumber,
+                ]);
+            } catch (\Throwable $ignored) {
+            }
+
+            // Any error must restore public access immediately rather than
+            // leaving the site behind a maintenance page.
+            try {
+                $this->replacer->disableMaintenanceMode();
+            } catch (\Throwable $ignored) {
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Replacement failed: ' . $e->getMessage(),
+                'batch' => $batchNumber,
+            ], 500);
+        }
     }
 
     /**
@@ -222,14 +260,18 @@ class ReplacementController extends Controller
                 \Illuminate\Support\Facades\Artisan::call('down');
                 $this->statusManager->update(['maintenance_mode' => true]);
                 $this->statusManager->addLog('Maintenance mode enabled manually');
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to enable maintenance mode: ' . $e->getMessage(),
                 ], 500);
             }
         } else {
-            $this->replacer->disableMaintenanceMode();
+            try {
+                $this->replacer->disableMaintenanceMode();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Manual maintenance disable failed', ['error' => $e->getMessage()]);
+            }
         }
 
         return response()->json([
@@ -282,7 +324,7 @@ class ReplacementController extends Controller
                 'report' => $report,
                 'cached' => false,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::warning('Composer analysis failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
