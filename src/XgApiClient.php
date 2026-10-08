@@ -46,26 +46,55 @@ class XgApiClient
         $url = "{$this->getBaseApiUrl()}/download-latest-version/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
         $postFields = [
             "ip" => $ip,
-            "api_token" => Config::get("xgapiclient.has_token") 
+            "api_token" => Config::get("xgapiclient.has_token")
         ];
         $skip_api_url = "{$this->getBaseApiUrl()}/latest-version-skip-files/{$getItemLicenseKey}/{$productUid}?site={$siteUrl}&has={$has}";
-        $response  = Http::get($skip_api_url);
-        $updateInfo = $response->object();
-        
-        $download_status = $this->chunkedDownload($url,$postFields);
+
+        // Try to get update info, handle 202 if chunks not ready yet
+        try {
+            $response  = Http::get($skip_api_url);
+            $updateInfo = $response->object();
+        } catch (\Exception $e) {
+            Log::warning('Could not fetch skip files info', ['error' => $e->getMessage()]);
+            $updateInfo = null;
+        }
+
+        $download_status = $this->chunkedDownload($url, $postFields);
+
+        // Handle different response codes
+        if ($download_status === 202) {
+            // Update not ready - chunks still being generated
+            return [
+                'success' => false,
+                'msg' => __('Update file is not yet ready. Please try again in a few moments.'),
+                'type' => 'warning',
+                'status' => 'processing',
+            ];
+        }
+
+        if ($download_status === 422) {
+            // Update generation failed
+            return [
+                'success' => false,
+                'msg' => __('Update generation failed. Please contact support or try again later.'),
+                'type' => 'danger',
+                'status' => 'failed',
+            ];
+        }
 
         if ($download_status === 200) {
             Artisan::call('down');
 
             try {
-                $returnVal = ['msg' => __('your website is updated to latest version successfully'),"type" => "success"];
+                $returnVal = ['msg' => __('your website is updated to latest version successfully'), "type" => "success"];
                 CacheCleaner::clearBootstrapCache();
-                if ($this->systemUpgradeWithLatestVersion($updateInfo)) {
+
+                if ($updateInfo && $this->systemUpgradeWithLatestVersion($updateInfo)) {
                     CacheCleaner::clearBootstrapCache();
                     Artisan::call('up');
                     if (!$this->systemDbUpgrade($isTenant,$version)){
                         $returnVal ['msg'] = __('Database Upgrade and Migration failed');
-                        $returnVal ['type'] = "success";
+                        $returnVal ['type'] = "warning";
                         return $returnVal;
                     }
                 }
@@ -85,7 +114,15 @@ class XgApiClient
                 }
             }
         }
-        return false;
+
+        // Handle any other status code as error
+        Log::error('Unexpected download status code', ['status' => $download_status]);
+        return [
+            'success' => false,
+            'msg' => __('Failed to download update. Please try again later.'),
+            'type' => 'danger',
+            'status_code' => $download_status,
+        ];
     }
 
     public function generalDownload($url,$fields){
@@ -103,43 +140,115 @@ class XgApiClient
         return $downloadResponse->status();
     }
 
-    public function chunkedDownload($url,$fields){
-        
+    public function chunkedDownload($url, $fields, $maxRetries = 5){
+
         $destination = storage_path("app/update-file/");
-        
+
         if (!file_exists($destination)) {
             mkdir($destination, 0777, true);
         }
-        
-        file_put_contents($destination.'update.zip', ""); 
-        
-        $client = new Client();
 
-        // Open file handle for writing
-        $fp = fopen($destination.'update.zip', 'w+');
-        
-        // Make the POST request
-        $response = $client->post($url, [
-            'form_params' => $fields,
-            'stream' => true,
-        ]);
-        
-        // Get the response body as a stream
-        $body = $response->getBody();
-        
-        // Define the chunk size (e.g., 1 MB)
-        $chunkSize = 1024 * 1024;
-        
-        // Read the stream in chunks and write to the file
-        while (!$body->eof()) {
-            $chunk = $body->read($chunkSize);
-            fwrite($fp, $chunk);
+        file_put_contents($destination.'update.zip', "");
+
+        $client = new Client();
+        $attempt = 0;
+        $lastResponse = null;
+
+        while ($attempt < $maxRetries) {
+            try {
+                // Make the POST request
+                $response = $client->post($url, [
+                    'form_params' => $fields,
+                    'stream' => true,
+                    'http_errors' => false, // Don't throw on 4xx/5xx
+                ]);
+
+                $statusCode = $response->getStatusCode();
+                $lastResponse = $response;
+
+                // Handle 202 Accepted - Update not ready yet
+                if ($statusCode === 202) {
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+                    $retryAfter = $responseData['retry_after'] ?? 30;
+                    $errorCode = $responseData['error_code'] ?? 'UNKNOWN';
+
+                    Log::info('Update not ready, will retry', [
+                        'error_code' => $errorCode,
+                        'retry_after' => $retryAfter,
+                        'attempt' => $attempt + 1,
+                    ]);
+
+                    $attempt++;
+                    if ($attempt < $maxRetries) {
+                        sleep($retryAfter);
+                        continue; // Retry
+                    } else {
+                        Log::error('Update check failed after max retries', [
+                            'error_code' => $errorCode,
+                            'max_attempts' => $maxRetries,
+                        ]);
+                        return 202; // Return 202 to indicate not ready
+                    }
+                }
+
+                // Handle 422 Unprocessable Entity - Generation failed
+                if ($statusCode === 422) {
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+                    Log::error('Update generation failed', [
+                        'error_code' => $responseData['error_code'] ?? 'CHUNKS_FAILED',
+                        'message' => $responseData['message'] ?? 'Unknown error',
+                        'details' => $responseData['error_details'] ?? null,
+                    ]);
+                    return 422; // Return 422 to indicate failure
+                }
+
+                // Handle 200 OK - Update ready, download the file
+                if ($statusCode === 200) {
+                    // Open file handle for writing
+                    $fp = fopen($destination.'update.zip', 'w+');
+
+                    // Get the response body as a stream
+                    $body = $response->getBody();
+
+                    // Define the chunk size (e.g., 1 MB)
+                    $chunkSize = 1024 * 1024;
+
+                    // Read the stream in chunks and write to the file
+                    while (!$body->eof()) {
+                        $chunk = $body->read($chunkSize);
+                        fwrite($fp, $chunk);
+                    }
+
+                    // Close the file handle
+                    fclose($fp);
+
+                    Log::info('Update file downloaded successfully');
+                    return 200;
+                }
+
+                // Handle any other status code
+                Log::warning('Unexpected response status from update API', [
+                    'status_code' => $statusCode,
+                ]);
+                return $statusCode;
+
+            } catch (\Exception $e) {
+                Log::error('Error during chunked download', [
+                    'error' => $e->getMessage(),
+                    'attempt' => $attempt + 1,
+                ]);
+
+                $attempt++;
+                if ($attempt < $maxRetries) {
+                    sleep(5); // Wait 5 seconds before retry on error
+                    continue;
+                } else {
+                    return 500; // Return 500 to indicate server error
+                }
+            }
         }
-        
-        // Close the file handle
-        fclose($fp);
-        
-        return $response->getStatusCode();//status code s failed or success 
+
+        return 502; // Return 502 if max retries exceeded
     }
 
     public function getFiles($directory) {

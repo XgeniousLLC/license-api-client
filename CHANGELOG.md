@@ -2,6 +2,16 @@
 
 All notable changes to `XgApiClient` will be documented in this file.
 
+## 6.8.0 - 2026-October-08
+
+- Added: Smart retry logic for update downloads - the package now handles HTTP 202 responses when update chunks aren't ready yet, implementing exponential backoff with configurable retry attempts (default: 5 retries)
+- Added: Clear error handling for different update states - HTTP 202 (update not ready), HTTP 200 (ready to download), HTTP 422 (generation failed), with user-friendly messages for each scenario
+- Changed: `chunkedDownload()` method now checks response status codes before attempting to download the ZIP file, preventing parse errors when chunks aren't ready
+- Fixed: Update process now properly handles `retry_after` headers from the license server, implementing intelligent wait times between retry attempts
+- Changed: Error responses now include specific error codes (`CHUNKS_NOT_GENERATED`, `CHUNKS_PROCESSING`, `CHUNKS_NOT_READY`) for better debugging and user communication
+- Added: Comprehensive logging for all update stages - initialization, retry attempts, failures, and successful downloads for better troubleshooting
+- Improved: User experience with clearer messages when update files are still being generated or if generation failed
+
 ## 6.6.3 - 2026-September-29
 
 - Fixed: a mid-replacement failure ("Failed to fetch" with nothing in the log - the batch request is killed by the host's timeout, so PHP never logs) no longer kills the update - batch requests in `UpdateManager.js` now retry transient network failures (5 attempts with backoff), and resume continues from the last completed batch instead of redoing the whole Replace phase from batch 0
