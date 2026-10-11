@@ -304,7 +304,7 @@ class BatchReplacer
 
         // Detect actual root of the update
         $realRoot = $this->detectUpdateRoot($extractedPath);
-        
+
         // Log the detected root for debugging
         if ($realRoot !== $extractedPath) {
             $this->statusManager->addLog("Detected nested update structure. Root: " . basename($realRoot));
@@ -432,14 +432,27 @@ class BatchReplacer
     protected function detectUpdateRoot(string $path): string
     {
         $currentPath = $path;
-        
+
         // Safety limit to prevent infinite loops
         for ($i = 0; $i < 5; $i++) {
             $files = File::files($currentPath);
             $directories = File::directories($currentPath);
 
-            // If there are files, this is likely the root (or contains files we need)
-            if (count($files) > 0) {
+            // Ignore known metadata/dotfiles that appear at ZIP root but are not
+            // meaningful content — they must not prevent drilling into a subdirectory
+            // like changed/ that contains the actual update files.
+            $metadataFiles = [
+                '.gitattributes', '.editorconfig', '.DS_Store',
+                '.gitignore', 'README.md', 'readme.md', 'CHANGELOG.md',
+                'changelog.md', 'LICENSE', 'license.txt',
+            ];
+            $meaningfulFiles = array_filter(
+                $files,
+                fn($file) => !in_array($file->getFilename(), $metadataFiles, true)
+            );
+
+            // If there are meaningful files, this is the real root
+            if (count($meaningfulFiles) > 0) {
                 return $currentPath;
             }
 
